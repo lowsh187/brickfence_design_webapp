@@ -7,6 +7,12 @@ interface WizardLayoutProps {
   lengthM: number
   heightM: number
   bondPattern?: string
+  pierType?: string
+  pierSize?: string
+  pierHeightM?: number
+  pierSpacingM?: number
+  cutBricks?: string
+  timberFence?: string
   showDiagram: boolean
 }
 
@@ -15,6 +21,12 @@ export default function WizardLayout({
   lengthM,
   heightM,
   bondPattern,
+  pierType,
+  pierSize,
+  pierHeightM,
+  pierSpacingM,
+  cutBricks,
+  timberFence,
   showDiagram,
 }: WizardLayoutProps) {
   const { t } = useTranslation()
@@ -35,6 +47,12 @@ export default function WizardLayout({
                   lengthM={lengthM}
                   heightM={heightM}
                   bondPattern={bondPattern}
+                  pierType={pierType}
+                  pierSize={pierSize}
+                  pierHeightM={pierHeightM}
+                  pierSpacingM={pierSpacingM}
+                  cutBricks={cutBricks}
+                  timberFence={timberFence}
                 />
               </div>
             ) : (

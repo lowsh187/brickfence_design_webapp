@@ -10,7 +10,14 @@ interface SavedQuote {
   length: string
   height: string
   bondPattern: string
-  totalCost: number
+  pierType: string
+  pierSize: string
+  pierHeight?: string
+  pierSpacing: string
+  cutBricks: string
+  timberFence: string
+  brickCount?: number
+  mortarVolumeM3?: number
 }
 
 function getQuotes(): SavedQuote[] {
@@ -57,6 +64,36 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
       field: 'bondPattern',
       value: quote.bondPattern || 'stretcher',
     })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'pierType',
+      value: quote.pierType || 'none',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'pierSize',
+      value: quote.pierSize || '1_5x1_5',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'pierHeight',
+      value: quote.pierHeight || '1.8',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'pierSpacing',
+      value: quote.pierSpacing || '2.8',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'cutBricks',
+      value: quote.cutBricks || 'allowed',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'timberFence',
+      value: quote.timberFence || 'none',
+    })
     dispatch({ type: 'SET_FIELD', field: 'activeQuoteName', value: quote.name })
     onClose()
     navigate('/cost')
@@ -100,11 +137,27 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
                       <h3 className="font-semibold text-text">{quote.name}</h3>
                       <p className="text-xs text-text-muted">{t('quotes.date')}: {quote.date}</p>
                     </div>
-                    <span className="text-primary font-bold">${quote.totalCost.toFixed(2)}</span>
+                    <span className="text-primary font-bold">
+                      {(quote.brickCount ?? 0).toFixed(1)} / {(quote.mortarVolumeM3 ?? 0).toFixed(3)} m³
+                    </span>
                   </div>
                   <div className="text-sm text-text-muted mb-3">
                     {t('quotes.length')}: {quote.length}m | {t('quotes.height')}: {quote.height}m
                     {quote.bondPattern && ` | ${t(`bond.${quote.bondPattern}`)}`}
+                    {quote.pierType && ` | ${t(`pier.types.${quote.pierType}`)}`}
+                    {quote.pierType && quote.pierType !== 'none' && quote.pierSize
+                      ? ` | ${t(`pier.sizes.${quote.pierSize}`)}`
+                      : ''}
+                    {quote.pierType && quote.pierType !== 'none' && quote.pierHeight
+                      ? ` | ${quote.pierHeight}m`
+                      : ''}
+                    {quote.pierType && quote.pierType !== 'none' && quote.pierSpacing
+                      ? ` (${quote.pierSpacing}m)`
+                      : ''}
+                    {quote.cutBricks ? ` | ${t(`cutBricks.options.${quote.cutBricks}`)}` : ''}
+                    {quote.pierType && quote.pierType !== 'none' && quote.timberFence
+                      ? ` | ${t(`pier.timberFenceOptions.${quote.timberFence}`)}`
+                      : ''}
                   </div>
                   <div className="flex gap-2">
                     <button

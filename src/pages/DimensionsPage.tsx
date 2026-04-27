@@ -4,7 +4,7 @@ import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
 
-const MAX_HEIGHT = 4
+const MAX_HEIGHT = 2
 
 export default function DimensionsPage() {
   const navigate = useNavigate()
@@ -101,6 +101,12 @@ export default function DimensionsPage() {
         lengthM={length}
         heightM={height}
         bondPattern={undefined}
+        pierType={state.pierType}
+        pierSize={state.pierSize}
+        pierHeightM={parseFloat(state.pierHeight) || 0}
+        pierSpacingM={parseFloat(state.pierSpacing) || 0}
+        cutBricks={state.cutBricks}
+        timberFence={state.timberFence}
         showDiagram={length > 0 && height > 0 && !heightTooHigh}
       />
     </div>
