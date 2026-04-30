@@ -6,7 +6,7 @@
 
 A client-side web application for estimating brick fence costs. Built with React + TypeScript + Vite.
 
-**Live demo:** https://cosimozi.github.io/COMP5703-Project/
+**Live demo:** (https://capstone-g-id113-t3-cs-24.vercel.app)/
 
 > Contributing a new bond pattern or feature? See
 > [CONTRIBUTING.md](CONTRIBUTING.md) for the branching workflow and the
