@@ -94,7 +94,7 @@ This issue has been observed during local development and is documented here for
 
 一个用于估算砖墙围栏成本的纯前端网页应用。基于 React + TypeScript + Vite 构建。
 
-**在线演示：** https://cosimozi.github.io/COMP5703-Project/
+**在线演示：** https://capstone-g-id113-t3-cs-24.vercel.app/
 
 > 想要新增一个砌筑样式或其它功能？请看
 > [CONTRIBUTING.md](CONTRIBUTING.md)，里面有分支工作流和添加 bond
