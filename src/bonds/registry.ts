@@ -1,5 +1,9 @@
 import type { BondPattern } from './types'
 import { stretcherBond } from './stretcher'
+import { stackBond } from './stack'
+import { headerBond } from './header'
+import { englishBond } from './english'
+import { flemishGardenBond } from './flemishGarden'
 
 const patterns: Map<string, BondPattern> = new Map()
 
@@ -16,7 +20,7 @@ export function allBonds(): BondPattern[] {
 }
 
 registerBond(stretcherBond)
-// Future teammates: import your pattern module and call registerBond here.
-// Example:
-//   import { englishBond } from './english'
-//   registerBond(englishBond)
+registerBond(stackBond)
+registerBond(headerBond)
+registerBond(englishBond)
+registerBond(flemishGardenBond)

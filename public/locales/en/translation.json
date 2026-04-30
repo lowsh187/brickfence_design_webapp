@@ -37,7 +37,72 @@
     "description": "Choose a brick bond pattern for your fence.",
     "stretcher": "Stretcher Bond",
     "stretcherDesc": "Most common pattern. Bricks staggered by half in each row.",
+    "stack": "Stack Bond",
+    "stackDesc": "Bricks stacked directly on top of each other. Simple and strong.",
+    "header": "Header Bond",
+    "headerDesc": "All headers laid lengthwise. Strong and uniform appearance.",
+    "english": "English Bond",
+    "englishDesc": "Alternating courses of stretchers and headers. Very strong.",
+    "flemishGarden": "Flemish Garden Bond",
+    "flemishGardenDesc": "Shifted headers and stretchers in a garden wall layout.",
     "comingSoon": "More patterns coming soon."
+  },
+  "pier": {
+    "heading": "Pier Layout",
+    "description": "Configure brick-built piers and the wall bays between them.",
+    "timberFence": "Fence infill",
+    "timberFenceHint": "Choose what to place between piers above the wall.",
+    "size": "Pier size",
+    "height": "Pier height",
+    "heightHint": "Set the overall pier height. Piers will not render lower than the wall itself.",
+    "spacing": "Pier spacing",
+    "spacingHint": "Centres are snapped in 0.24m brick modules and must stay at or below 3.0m.",
+    "spacingError": "Pier spacing cannot exceed 3.0m centre-to-centre.",
+    "types": {
+      "none": "No piers",
+      "hidden": "Hidden piers",
+      "exposed": "Exposed piers"
+    },
+    "typeDesc": {
+      "none": "Keep the wall as one continuous bonded face.",
+      "hidden": "Build brick piers behind the wall so only their top section reads clearly from the front.",
+      "exposed": "Build full-height brick piers and separate the wall into bays between them."
+    },
+    "sizes": {
+      "1_5x1": "1.5 bricks x 1 brick",
+      "1_5x1_5": "1.5 bricks x 1.5 bricks",
+      "2x1": "2 bricks x 1 brick",
+      "2x2": "2 bricks x 2 bricks"
+    },
+    "sizeDesc": {
+      "1_5x1": "Narrow brick pier using a 1.5-brick front with 1-brick depth.",
+      "1_5x1_5": "Recommended minimum pier with a 1.5-brick front and deeper core.",
+      "2x1": "Wider 2-brick front pier with a slimmer depth.",
+      "2x2": "Largest standard pier in the current model, 2 bricks wide and 2 bricks deep."
+    },
+    "timberFenceOptions": {
+      "none": "No infill",
+      "timber": "Timber fence",
+      "pvc": "PVC fence"
+    },
+    "timberFenceDesc": {
+      "none": "Only show the brick wall and piers.",
+      "timber": "Draw two yellow rails between each pair of piers above the wall.",
+      "pvc": "Draw two light PVC rails between each pair of piers above the wall."
+    }
+  },
+  "cutBricks": {
+    "heading": "Cut Bricks",
+    "description": "Choose whether wall bays may use cut bricks at their ends.",
+    "options": {
+      "allowed": "Cut bricks allowed",
+      "notAllowed": "No cut bricks"
+    },
+    "optionDesc": {
+      "allowed": "Use the current implementation, which can trim end bricks where needed.",
+      "notAllowed": "Use only full/half brick outcomes with shorter or longer bay adjustments."
+    },
+    "note": "No-cut mode snaps wall bays and overall wall length to the nearest valid brick layout."
   },
   "diagram": {
     "previewTitle": "Wall Preview",
@@ -50,11 +115,21 @@
     "fenceLength": "Fence Length",
     "fenceHeight": "Fence Height",
     "bondPattern": "Bond Pattern",
+    "cutBricks": "Cut Bricks",
+    "pierType": "Pier Type",
+    "pierSize": "Pier Size",
+    "pierHeight": "Pier Height",
+    "pierSpacing": "Pier Spacing",
+    "timberFence": "Fence Infill",
+    "brickCount": "Total Bricks",
+    "mortarVolume": "Mortar Volume",
+    "summary": "Material Summary",
     "area": "Total Area",
     "unitPrice": "Unit Price",
     "totalCost": "Total Estimated Cost",
     "perSqm": "per m²",
     "meters": "m",
+    "cubicMeters": "m³",
     "sqm": "m²",
     "disclaimer": "This is an estimate only. Actual costs may vary based on materials, labor, and site conditions.",
     "saveQuote": "Save Quote",

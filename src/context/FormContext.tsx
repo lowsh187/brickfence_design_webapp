@@ -11,6 +11,12 @@ export interface FormState {
   length: string
   height: string
   bondPattern: string
+  pierType: string
+  pierSize: string
+  pierHeight: string
+  pierSpacing: string
+  cutBricks: string
+  timberFence: string
   activeQuoteName: string
 }
 
@@ -23,6 +29,12 @@ const initialState: FormState = {
   length: '',
   height: '',
   bondPattern: 'stretcher',
+  pierType: 'none',
+  pierSize: '1_5x1_5',
+  pierHeight: '1.8',
+  pierSpacing: '2.8',
+  cutBricks: 'allowed',
+  timberFence: 'none',
   activeQuoteName: '',
 }
 
@@ -51,6 +63,12 @@ function loadState(): FormState {
         length: merged.length ?? '',
         height: merged.height ?? '',
         bondPattern: merged.bondPattern || 'stretcher',
+        pierType: merged.pierType || 'none',
+        pierSize: merged.pierSize || '1_5x1_5',
+        pierHeight: merged.pierHeight || '1.8',
+        pierSpacing: merged.pierSpacing || '2.8',
+        cutBricks: merged.cutBricks || 'allowed',
+        timberFence: merged.timberFence || 'none',
         activeQuoteName: merged.activeQuoteName ?? '',
       }
     }

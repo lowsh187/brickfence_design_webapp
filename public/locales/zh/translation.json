@@ -37,7 +37,72 @@
     "description": "选择围栏的砖块砌筑样式。",
     "stretcher": "顺砖砌法",
     "stretcherDesc": "最常见的砌法。每行砖块错开半块。",
+    "stack": "叠砌法",
+    "stackDesc": "砖块直接叠放在彼此上方。简单而坚固。",
+    "header": "丁砖砌法",
+    "headerDesc": "所有丁砖以长边排列。外观均匀且坚固。",
+    "english": "英式砌法",
+    "englishDesc": "顺砖行与丁砖行交替排列。非常坚固。",
+    "flemishGarden": "佛兰芒花园墙砌法",
+    "flemishGardenDesc": "丁砖与顺砖交错排列，适合花园墙。",
     "comingSoon": "更多砌法即将推出。"
+  },
+  "pier": {
+    "heading": "砖柱布局",
+    "description": "配置真实砖柱，以及砖柱之间的墙段。",
+    "timberFence": "柱间填充",
+    "timberFenceHint": "选择砖柱之间、墙体上方的填充方式。",
+    "size": "砖柱规格",
+    "height": "砖柱高度",
+    "heightHint": "设置砖柱的整体高度，系统不会把砖柱显示得低于墙体高度。",
+    "spacing": "砖柱间距",
+    "spacingHint": "中心距会按 0.24 米砖模数吸附，且不得超过 3.0 米。",
+    "spacingError": "砖柱中心距不能超过 3.0 米。",
+    "types": {
+      "none": "无砖柱",
+      "hidden": "隐藏砖柱",
+      "exposed": "外露砖柱"
+    },
+    "typeDesc": {
+      "none": "保持连续墙面，只展示砌法本身。",
+      "hidden": "砖柱真实存在于墙后方，前视图主要看到高出墙顶的柱身。",
+      "exposed": "砖柱完整外露，墙体会被分成各个柱间墙段。"
+    },
+    "sizes": {
+      "1_5x1": "1.5砖 x 1砖",
+      "1_5x1_5": "1.5砖 x 1.5砖",
+      "2x1": "2砖 x 1砖",
+      "2x2": "2砖 x 2砖"
+    },
+    "sizeDesc": {
+      "1_5x1": "较窄的砖柱，正面为 1.5 砖宽，进深为 1 砖。",
+      "1_5x1_5": "推荐的最小砖柱规格，正面 1.5 砖宽，内部更厚。",
+      "2x1": "更宽的 2 砖正面砖柱，但进深较薄。",
+      "2x2": "当前模型里最大的常规砖柱，宽 2 砖、深 2 砖。"
+    },
+    "timberFenceOptions": {
+      "none": "不添加",
+      "timber": "添加木栅栏",
+      "pvc": "添加 PVC 栅栏"
+    },
+    "timberFenceDesc": {
+      "none": "只显示砖墙和砖柱。",
+      "timber": "在墙体上方、相邻砖柱之间绘制两条黄色横线。",
+      "pvc": "在墙体上方、相邻砖柱之间绘制两条浅色 PVC 横线。"
+    }
+  },
+  "cutBricks": {
+    "heading": "切砖规则",
+    "description": "选择柱间墙段两端是否允许使用切砖。",
+    "options": {
+      "allowed": "允许切砖",
+      "notAllowed": "不允许切砖"
+    },
+    "optionDesc": {
+      "allowed": "使用当前已实现的逻辑，在需要时允许端部出现切砖。",
+      "notAllowed": "仅允许整砖/半砖，并通过缩短或加长墙段来调整长度。"
+    },
+    "note": "不允许切砖时，系统会把柱间墙段和整体墙长吸附到最近的合法砖块排布。"
   },
   "diagram": {
     "previewTitle": "墙体预览",
@@ -50,11 +115,21 @@
     "fenceLength": "围栏长度",
     "fenceHeight": "围栏高度",
     "bondPattern": "砌筑样式",
+    "cutBricks": "切砖规则",
+    "pierType": "砖柱类型",
+    "pierSize": "砖柱规格",
+    "pierHeight": "砖柱高度",
+    "pierSpacing": "砖柱间距",
+    "timberFence": "柱间填充",
+    "brickCount": "砖块总数量",
+    "mortarVolume": "灰缝总体积",
+    "summary": "材料汇总",
     "area": "总面积",
     "unitPrice": "单价",
     "totalCost": "预估总费用",
     "perSqm": "每平方米",
     "meters": "米",
+    "cubicMeters": "立方米",
     "sqm": "平方米",
     "disclaimer": "这仅为估算值。实际成本可能因材料、人工和现场条件而异。",
     "saveQuote": "保存报价",
