@@ -2,23 +2,22 @@ import { useRef, useState, useEffect, useMemo } from 'react'
 import { Stage, Layer, Rect, Group, Line } from 'react-konva'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
+import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from '../bonds/brickDimensions'
 
 const MIN_CANVAS_H = 520
 const MAX_CANVAS_H = 980
 const HORIZONTAL_PADDING = 36
 const VERTICAL_PADDING = 56
-const BRICK_L = 230
-const BRICK_W = 110
-const BRICK_H = 76
-const MORTAR_T = 10
 const PIER_EXTRA_HEIGHT_MM = 180
 const TIMBER_FROM_WALL_TOP_MM = 36
 const TIMBER_RAIL_GAP_MM = 90
-const BRICK_MODULE = 240
 const MAX_PIER_SPACING_MM = 3000
 const MORTAR_FILL = '#c9b89a'
 const ADJ_FILL = '#d49050'
 const PIER_STROKE = '#4e3426'
+const PIER_SIDE_SHADOW = 'rgba(47,29,20,0.26)'
+const EXPOSED_PIER_EDGE = '#2f1d14'
+const EXPOSED_PIER_HIGHLIGHT = 'rgba(255,236,190,0.34)'
 const TIMBER_STROKE = '#d9b43b'
 const PVC_STROKE = '#f2f2f2'
 const PVC_FILL = '#fbfbf7'
@@ -34,9 +33,6 @@ const STRETCHER_PALETTE = [
 const STROKE_NORMAL = '#6a2208'
 const STROKE_ADJ = '#9a5010'
 const SHEEN_FILL = 'rgba(255,230,180,0.12)'
-const TWO_BRICK_PIER_ODD_COURSE = [BRICK_L, BRICK_L]
-const TWO_BRICK_PIER_EVEN_COURSE = [BRICK_W, BRICK_L, BRICK_W]
-
 interface FenceDiagramProps {
   lengthM: number
   heightM: number
@@ -47,6 +43,7 @@ interface FenceDiagramProps {
   pierSpacingM?: number
   cutBricks?: string
   timberFence?: string
+  brickDimensions?: BrickDimensions
 }
 
 interface PierSpec {
@@ -86,27 +83,93 @@ interface IndexedPierLayout extends PierLayout {
   index: number
 }
 
-const PIER_SPECS: Record<string, PierSpec> = {
-  '1_5x1': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_W,
-    oddCourse: [BRICK_L, BRICK_W],
-    evenCourse: [BRICK_W, BRICK_L],
-  },
-  '1_5x1_5': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_W,
-    oddCourse: [BRICK_L, BRICK_W],
-    evenCourse: [BRICK_W, BRICK_L],
-  },
-  '2x1': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_L,
-    oddCourse: TWO_BRICK_PIER_ODD_COURSE,
-    evenCourse: TWO_BRICK_PIER_EVEN_COURSE,
-  },
-  '2x2': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_L,
-    oddCourse: TWO_BRICK_PIER_ODD_COURSE,
-    evenCourse: TWO_BRICK_PIER_EVEN_COURSE,
-  },
+function buildStackAlignedPierLayouts(
+  renderedW: number,
+  pierWidth: number,
+  bayCount: number,
+  brickModule: number,
+): PierLayout[] {
+  const maxLeft = renderedW - pierWidth
+  if (maxLeft <= 0) {
+    return [{ center: renderedW / 2, left: 0, width: pierWidth }]
+  }
+
+  const validLefts: number[] = []
+  for (let left = 0; left <= maxLeft + 0.001; left += brickModule) {
+    validLefts.push(Math.min(maxLeft, Math.round(left)))
+  }
+
+  const pierCount = Math.max(2, bayCount + 1)
+  const layouts: PierLayout[] = []
+  let previousIndex = -1
+
+  for (let idx = 0; idx < pierCount; idx++) {
+    const remaining = pierCount - idx - 1
+    let selectedIndex: number
+
+    if (idx === 0) {
+      selectedIndex = 0
+    } else if (idx === pierCount - 1) {
+      selectedIndex = validLefts.length - 1
+    } else {
+      const desiredLeft = (idx * maxLeft) / (pierCount - 1)
+      const minIndex = previousIndex + 1
+      const maxIndex = validLefts.length - 1 - remaining
+      selectedIndex = minIndex
+
+      for (let candidate = minIndex; candidate <= maxIndex; candidate++) {
+        if (
+          Math.abs(validLefts[candidate] - desiredLeft) <
+          Math.abs(validLefts[selectedIndex] - desiredLeft)
+        ) {
+          selectedIndex = candidate
+        }
+      }
+    }
+
+    previousIndex = selectedIndex
+    const left = validLefts[selectedIndex]
+    layouts.push({
+      center: left + pierWidth / 2,
+      left,
+      width: pierWidth,
+    })
+  }
+
+  return layouts
+}
+
+function buildPierSpecs(
+  dimensions: BrickDimensions,
+  bondPattern: string,
+): Record<string, PierSpec> {
+  const { length: brickL, width: brickW, mortar } = dimensions
+  const twoBrickPierOddCourse = [brickL, brickL]
+  const twoBrickPierEvenCourse =
+    bondPattern === 'stack' ? twoBrickPierOddCourse : [brickW, brickL, brickW]
+
+  return {
+    '1_5x1': {
+      frontWidth: brickL + mortar + brickW,
+      oddCourse: [brickL, brickW],
+      evenCourse: [brickW, brickL],
+    },
+    '1_5x1_5': {
+      frontWidth: brickL + mortar + brickW,
+      oddCourse: [brickL, brickW],
+      evenCourse: [brickW, brickL],
+    },
+    '2x1': {
+      frontWidth: brickL + mortar + brickL,
+      oddCourse: twoBrickPierOddCourse,
+      evenCourse: twoBrickPierEvenCourse,
+    },
+    '2x2': {
+      frontWidth: brickL + mortar + brickL,
+      oddCourse: twoBrickPierOddCourse,
+      evenCourse: twoBrickPierEvenCourse,
+    },
+  }
 }
 
 function hashNoise(row: number, index: number): number {
@@ -136,19 +199,23 @@ function brickFill(b: BrickData, idx: number): string {
   return adjustBrightness(base, hashNoise(b.row, idx))
 }
 
-function generatePierFace(spec: PierSpec, targetHeightMm: number): {
+function generatePierFace(
+  spec: PierSpec,
+  targetHeightMm: number,
+  dimensions: BrickDimensions,
+): {
   bricks: BrickData[]
   width: number
   height: number
 } {
-  const courseH = BRICK_H + MORTAR_T
-  const nRows = Math.max(1, Math.ceil((targetHeightMm + MORTAR_T) / courseH))
-  const height = nRows * courseH - MORTAR_T
+  const courseH = dimensions.height + dimensions.mortar
+  const nRows = Math.max(1, Math.ceil((targetHeightMm + dimensions.mortar) / courseH))
+  const height = nRows * courseH - dimensions.mortar
   const bricks: BrickData[] = []
 
   for (let row = 0; row < nRows; row++) {
     const widths = row % 2 === 0 ? spec.oddCourse : spec.evenCourse
-    const y = height - ((row + 1) * courseH - MORTAR_T)
+    const y = height - ((row + 1) * courseH - dimensions.mortar)
     let x = 0
 
     for (let i = 0; i < widths.length; i++) {
@@ -157,21 +224,21 @@ function generatePierFace(spec: PierSpec, targetHeightMm: number): {
         x,
         y,
         w,
-        h: BRICK_H,
+        h: dimensions.height,
         row,
-        type: w <= BRICK_W ? 'half' : 'full',
+        type: w <= dimensions.width ? 'half' : 'full',
       })
       x += w
-      if (i < widths.length - 1) x += MORTAR_T
+      if (i < widths.length - 1) x += dimensions.mortar
     }
   }
 
   return { bricks, width: spec.frontWidth, height }
 }
 
-function buildNoCutSearchOffsets(limit: number): number[] {
+function buildNoCutSearchOffsets(limit: number, mortar: number): number[] {
   const offsets = [0]
-  for (let step = MORTAR_T; step <= limit; step += MORTAR_T) {
+  for (let step = mortar; step <= limit; step += mortar) {
     offsets.push(step, -step)
   }
   return offsets
@@ -181,17 +248,18 @@ function tryGenerateNoCutBond(
   bond: NonNullable<ReturnType<typeof getBond>>,
   targetWallL: number,
   wallH: number,
+  dimensions: BrickDimensions,
 ): SnappedBond | null {
   if (targetWallL <= 0 || wallH <= 0) return null
 
   const searchLimit = 1600
-  const offsets = buildNoCutSearchOffsets(searchLimit)
+  const offsets = buildNoCutSearchOffsets(searchLimit, dimensions.mortar)
 
   for (const offset of offsets) {
     const candidateL = targetWallL + offset
-    if (candidateL < BRICK_W) continue
+    if (candidateL < dimensions.width) continue
 
-    const result = bond.generate({ wallL: candidateL, wallH })
+    const result = bond.generate({ wallL: candidateL, wallH, brickDimensions: dimensions })
     if (result.bricks.every((brick) => brick.type !== 'adj')) {
       return {
         wallW: result.wallW,
@@ -214,6 +282,7 @@ export default function FenceDiagram({
   pierSpacingM,
   cutBricks,
   timberFence,
+  brickDimensions,
 }: FenceDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
@@ -231,17 +300,36 @@ export default function FenceDiagram({
 
   const wallL = lengthM * 1000
   const wallHmm = heightM * 1000
+  const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
+  const brickModule = dimensions.length + dimensions.mortar
 
   const pierTypeSafe = pierType ?? 'none'
-  const pierSizeSafe = pierSize ?? '1_5x1_5'
+  const bondPatternSafe = bondPattern ?? 'stretcher'
+  const requestedPierSize = pierSize ?? '1_5x1_5'
+  const pierSizeSafe =
+    bondPatternSafe === 'stack' &&
+    pierTypeSafe === 'hidden' &&
+    requestedPierSize !== '2x1' &&
+    requestedPierSize !== '2x2'
+      ? '2x1'
+      : (bondPatternSafe === 'stack' || bondPatternSafe === 'stretcher') &&
+        pierTypeSafe === 'exposed' &&
+        requestedPierSize !== '2x2'
+      ? '2x2'
+      : requestedPierSize
   const cutBricksSafe = cutBricks ?? 'allowed'
   const timberFenceSafe = timberFence ?? 'none'
-  const bond = getBond(bondPattern ?? 'stretcher') ?? getBond('stretcher')
-  const pierSpec = PIER_SPECS[pierSizeSafe] ?? PIER_SPECS['1_5x1_5']
+  const bond = getBond(bondPatternSafe) ?? getBond('stretcher')
+  const pierSpecs = useMemo(
+    () => buildPierSpecs(dimensions, bondPatternSafe),
+    [bondPatternSafe, dimensions],
+  )
+  const pierSpec = pierSpecs[pierSizeSafe] ?? pierSpecs['1_5x1_5']
+  const useHiddenStackPier = pierTypeSafe === 'hidden' && bondPatternSafe === 'stack'
   const useHiddenNoCutStretcher15x1 =
     pierTypeSafe === 'hidden' &&
     cutBricksSafe === 'notAllowed' &&
-    (bondPattern ?? 'stretcher') === 'stretcher' &&
+    bondPatternSafe === 'stretcher' &&
     pierSizeSafe === '1_5x1'
 
   const pierTargetHeightMm = Math.max(
@@ -250,8 +338,8 @@ export default function FenceDiagram({
   )
 
   const pierFace = useMemo(
-    () => generatePierFace(pierSpec, pierTargetHeightMm),
-    [pierSpec, pierTargetHeightMm],
+    () => generatePierFace(pierSpec, pierTargetHeightMm, dimensions),
+    [dimensions, pierSpec, pierTargetHeightMm],
   )
 
   const layout = useMemo<StructureLayout>(() => {
@@ -260,17 +348,17 @@ export default function FenceDiagram({
     }
 
     const desiredSpacingMm = Math.max(
-      BRICK_MODULE,
+      brickModule,
       Math.min(MAX_PIER_SPACING_MM, (pierSpacingM || 0) * 1000 || 2800),
     )
     const snappedRequestedSpacingMm = Math.max(
-      BRICK_MODULE,
-      Math.round(desiredSpacingMm / BRICK_MODULE) * BRICK_MODULE,
+      brickModule,
+      Math.round(desiredSpacingMm / brickModule) * brickModule,
     )
 
     if (pierTypeSafe === 'none') {
       if (cutBricksSafe === 'notAllowed') {
-        const snappedBond = tryGenerateNoCutBond(bond, wallL, wallHmm)
+        const snappedBond = tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions)
         if (snappedBond) {
           return {
             renderedW: snappedBond.wallW,
@@ -287,7 +375,7 @@ export default function FenceDiagram({
         }
       }
 
-      const bondResult = bond.generate({ wallL, wallH: wallHmm })
+      const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
       return {
         renderedW: bondResult.wallW,
         renderedH: bondResult.wallH,
@@ -305,10 +393,102 @@ export default function FenceDiagram({
     const interiorSpan = Math.max(0, wallL - pierSpec.frontWidth)
     const bayCount = Math.max(1, Math.ceil(interiorSpan / snappedRequestedSpacingMm))
 
+    if (pierTypeSafe === 'hidden') {
+      const result =
+        cutBricksSafe === 'notAllowed'
+          ? tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions) ??
+            bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+          : bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+      const renderedW = result.wallW
+      const hiddenInteriorSpan = Math.max(0, renderedW - pierSpec.frontWidth)
+      const piers: PierLayout[] =
+        useHiddenStackPier && cutBricksSafe === 'notAllowed'
+          ? buildStackAlignedPierLayouts(
+            renderedW,
+            pierSpec.frontWidth,
+            bayCount,
+            brickModule,
+          )
+          : Array.from({ length: bayCount + 1 }, (_, idx) => {
+            const center =
+              bayCount === 0
+                ? renderedW / 2
+                : pierSpec.frontWidth / 2 + (idx * hiddenInteriorSpan) / bayCount
+            return {
+              center,
+              left: Math.max(
+                0,
+                Math.min(renderedW - pierSpec.frontWidth, center - pierSpec.frontWidth / 2),
+              ),
+              width: pierSpec.frontWidth,
+            }
+          })
+
+      return {
+        renderedW,
+        renderedH: result.wallH,
+        piers,
+        wallSegments: [{
+          left: 0,
+          width: renderedW,
+          top: 0,
+          height: result.wallH,
+          bricks: result.bricks,
+        }],
+      }
+    }
+
+    if (useHiddenStackPier) {
+      const result =
+        cutBricksSafe === 'notAllowed'
+          ? tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions) ??
+            bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+          : bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+      const renderedW = result.wallW
+      const piers =
+        cutBricksSafe === 'notAllowed'
+          ? buildStackAlignedPierLayouts(
+            renderedW,
+            pierSpec.frontWidth,
+            bayCount,
+            brickModule,
+          )
+          : (() => {
+            const stackInteriorSpan = Math.max(0, renderedW - pierSpec.frontWidth)
+            return Array.from({ length: bayCount + 1 }, (_, idx) => {
+              const center =
+                bayCount === 0
+                  ? renderedW / 2
+                  : pierSpec.frontWidth / 2 + (idx * stackInteriorSpan) / bayCount
+              return {
+                center,
+                left: Math.max(
+                  0,
+                  Math.min(renderedW - pierSpec.frontWidth, center - pierSpec.frontWidth / 2),
+                ),
+                width: pierSpec.frontWidth,
+              }
+            })
+          })()
+
+      return {
+        renderedW,
+        renderedH: result.wallH,
+        piers,
+        wallSegments: [{
+          left: 0,
+          width: renderedW,
+          top: 0,
+          height: result.wallH,
+          bricks: result.bricks,
+        }],
+      }
+    }
+
     if (useHiddenNoCutStretcher15x1) {
-      const wallInset = BRICK_W + MORTAR_T
-      const targetWallWidth = Math.max(BRICK_L, wallL - wallInset * 2)
-      const snappedWall = tryGenerateNoCutBond(bond, targetWallWidth, wallHmm)
+      const wallInset = dimensions.width + dimensions.mortar
+      const targetWallWidth = Math.max(dimensions.length, wallL - wallInset * 2)
+      const snappedWall = tryGenerateNoCutBond(bond, targetWallWidth, wallHmm, dimensions)
 
       if (snappedWall) {
         const renderedW = snappedWall.wallW + wallInset * 2
@@ -343,8 +523,8 @@ export default function FenceDiagram({
     }
 
     if (cutBricksSafe === 'notAllowed') {
-      const targetBayWidth = Math.max(BRICK_W, snappedRequestedSpacingMm - pierSpec.frontWidth)
-      const snappedBay = tryGenerateNoCutBond(bond, targetBayWidth, wallHmm)
+      const targetBayWidth = Math.max(dimensions.width, snappedRequestedSpacingMm - pierSpec.frontWidth)
+      const snappedBay = tryGenerateNoCutBond(bond, targetBayWidth, wallHmm, dimensions)
 
       if (snappedBay) {
         const piers: PierLayout[] = []
@@ -383,7 +563,7 @@ export default function FenceDiagram({
       }
     }
 
-    const bondResult = bond.generate({ wallL, wallH: wallHmm })
+    const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
     const piers: PierLayout[] = Array.from({ length: bayCount + 1 }, (_, idx) => {
       const center =
         bayCount === 0
@@ -452,10 +632,14 @@ export default function FenceDiagram({
     }
   }, [
     bond,
+    brickModule,
     cutBricksSafe,
+    dimensions,
     pierSpacingM,
     pierSpec.frontWidth,
     pierTypeSafe,
+    useHiddenStackPier,
+    useHiddenNoCutStretcher15x1,
     wallHmm,
     wallL,
   ])
@@ -545,15 +729,22 @@ export default function FenceDiagram({
             {pierTypeSafe !== 'none' &&
               clippedPiers.map((pier, i) => {
                 const localX = (pier.left - startX) * scale
+                const isExposedPier = pierTypeSafe === 'exposed'
+                const isHiddenPier = pierTypeSafe === 'hidden'
                 const isInteriorHiddenPier =
-                  useHiddenNoCutStretcher15x1 &&
+                  (useHiddenNoCutStretcher15x1 || useHiddenStackPier) &&
                   pier.index > 0 &&
                   pier.index < piers.length - 1
-                const visiblePierHeight = isInteriorHiddenPier ? topRevealMm : pierFace.height
+                const visiblePierHeight =
+                  isHiddenPier || isInteriorHiddenPier ? topRevealMm : pierFace.height
                 return (
                   <Group
                     key={`pier-${i}`}
                     opacity={0.95}
+                    shadowColor={isExposedPier ? 'rgba(0,0,0,0.35)' : undefined}
+                    shadowBlur={isExposedPier ? Math.max(3, 7 * scale) : 0}
+                    shadowOffsetX={isExposedPier ? Math.max(1, 5 * scale) : 0}
+                    shadowOffsetY={isExposedPier ? Math.max(1, 2 * scale) : 0}
                     clipX={localX}
                     clipY={0}
                     clipWidth={pierFace.width * scale}
@@ -565,9 +756,36 @@ export default function FenceDiagram({
                       width={pierFace.width * scale}
                       height={visiblePierHeight * scale}
                       fill={MORTAR_FILL}
+                      stroke={isExposedPier ? EXPOSED_PIER_EDGE : undefined}
+                      strokeWidth={isExposedPier ? Math.max(1.2, 1.1 * scale) : 0}
                     />
+                    {isExposedPier && (
+                      <>
+                        <Rect
+                          x={localX}
+                          y={0}
+                          width={Math.max(1.5, 5 * scale)}
+                          height={visiblePierHeight * scale}
+                          fill={PIER_SIDE_SHADOW}
+                          listening={false}
+                        />
+                        <Rect
+                          x={localX + pierFace.width * scale - Math.max(1.5, 5 * scale)}
+                          y={0}
+                          width={Math.max(1.5, 5 * scale)}
+                          height={visiblePierHeight * scale}
+                          fill={PIER_SIDE_SHADOW}
+                          listening={false}
+                        />
+                      </>
+                    )}
                     {pierFace.bricks.map((brick, brickIndex) => {
-                      if (isInteriorHiddenPier && brick.y + brick.h > topRevealMm) return null
+                      if (
+                        (isHiddenPier || isInteriorHiddenPier) &&
+                        brick.y + brick.h > topRevealMm
+                      ) {
+                        return null
+                      }
                       const w = brick.w * scale
                       const h = brick.h * scale
                       return (
@@ -578,8 +796,8 @@ export default function FenceDiagram({
                             width={w}
                             height={h}
                             fill={brickFill(brick, brickIndex)}
-                            stroke={PIER_STROKE}
-                            strokeWidth={strokePx}
+                            stroke={isExposedPier ? EXPOSED_PIER_EDGE : PIER_STROKE}
+                            strokeWidth={isExposedPier ? Math.max(strokePx, 1.1 * scale) : strokePx}
                             cornerRadius={0.5}
                           />
                           {sheenH > 0.5 && (
@@ -595,6 +813,27 @@ export default function FenceDiagram({
                         </Group>
                       )
                     })}
+                    {isExposedPier && (
+                      <>
+                        <Rect
+                          x={localX + Math.max(1, 2 * scale)}
+                          y={Math.max(1, 2 * scale)}
+                          width={Math.max(0, 4 * scale)}
+                          height={Math.max(0, visiblePierHeight * scale - 4 * scale)}
+                          fill={EXPOSED_PIER_HIGHLIGHT}
+                          listening={false}
+                        />
+                        <Rect
+                          x={localX}
+                          y={0}
+                          width={pierFace.width * scale}
+                          height={visiblePierHeight * scale}
+                          stroke={EXPOSED_PIER_EDGE}
+                          strokeWidth={Math.max(1.4, 1.3 * scale)}
+                          listening={false}
+                        />
+                      </>
+                    )}
                   </Group>
                 )
               })}

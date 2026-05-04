@@ -6,13 +6,14 @@ import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
+import {
+  DEFAULT_BRICK_DIMENSIONS,
+  brickDimensionsFromStrings,
+  validateBrickDimensions,
+  type BrickDimensions,
+} from '../bonds/brickDimensions'
 
-const BRICK_L = 230
-const BRICK_W = 110
-const BRICK_H = 76
-const MORTAR_T = 10
 const PIER_EXTRA_HEIGHT_MM = 180
-const BRICK_MODULE = 240
 const MAX_PIER_SPACING_MM = 3000
 
 interface PierSpec {
@@ -52,32 +53,41 @@ interface SavedQuote {
   pierSpacing: string
   cutBricks: string
   timberFence: string
+  brickSizeMode?: string
+  brickLength?: string
+  brickWidth?: string
+  brickHeight?: string
+  mortarJoint?: string
   brickCount: number
   mortarVolumeM3: number
 }
 
-const PIER_SPECS: Record<string, PierSpec> = {
-  '1_5x1': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_W,
-    depth: BRICK_L,
-  },
-  '1_5x1_5': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_W,
-    depth: BRICK_L + MORTAR_T + BRICK_W,
-  },
-  '2x1': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_L,
-    depth: BRICK_L,
-  },
-  '2x2': {
-    frontWidth: BRICK_L + MORTAR_T + BRICK_L,
-    depth: BRICK_L + MORTAR_T + BRICK_L,
-  },
+function buildPierSpecs(dimensions: BrickDimensions): Record<string, PierSpec> {
+  const { length: brickL, width: brickW, mortar } = dimensions
+
+  return {
+    '1_5x1': {
+      frontWidth: brickL + mortar + brickW,
+      depth: brickL,
+    },
+    '1_5x1_5': {
+      frontWidth: brickL + mortar + brickW,
+      depth: brickL + mortar + brickW,
+    },
+    '2x1': {
+      frontWidth: brickL + mortar + brickL,
+      depth: brickL,
+    },
+    '2x2': {
+      frontWidth: brickL + mortar + brickL,
+      depth: brickL + mortar + brickL,
+    },
+  }
 }
 
-function buildNoCutSearchOffsets(limit: number): number[] {
+function buildNoCutSearchOffsets(limit: number, mortar: number): number[] {
   const offsets = [0]
-  for (let step = MORTAR_T; step <= limit; step += MORTAR_T) {
+  for (let step = mortar; step <= limit; step += mortar) {
     offsets.push(step, -step)
   }
   return offsets
@@ -87,13 +97,14 @@ function tryGenerateNoCutBond(
   bond: NonNullable<ReturnType<typeof getBond>>,
   targetWallL: number,
   wallH: number,
+  dimensions: BrickDimensions,
 ): SnappedBond | null {
   if (targetWallL <= 0 || wallH <= 0) return null
 
-  for (const offset of buildNoCutSearchOffsets(1600)) {
+  for (const offset of buildNoCutSearchOffsets(1600, dimensions.mortar)) {
     const candidateL = targetWallL + offset
-    if (candidateL < BRICK_W) continue
-    const result = bond.generate({ wallL: candidateL, wallH })
+    if (candidateL < dimensions.width) continue
+    const result = bond.generate({ wallL: candidateL, wallH, brickDimensions: dimensions })
     if (result.bricks.every((brick) => brick.type !== 'adj')) {
       return {
         wallW: result.wallW,
@@ -106,14 +117,34 @@ function tryGenerateNoCutBond(
   return null
 }
 
-function brickUnitCount(brick: BrickData): number {
+function cutReferenceDimension(
+  brick: BrickData,
+  bondPattern: string,
+  dimensions: BrickDimensions,
+): number {
+  if (bondPattern === 'header') return dimensions.width
+  if (bondPattern === 'english') return brick.row % 2 === 1 ? dimensions.width : dimensions.length
+  if (bondPattern === 'flemishGarden') {
+    return brick.w <= dimensions.width ? dimensions.width : dimensions.length
+  }
+  return dimensions.length
+}
+
+function brickUnitCount(
+  brick: BrickData,
+  dimensions: BrickDimensions,
+  bondPattern: string,
+): number {
   if (brick.type === 'half') return 0.5
-  if (brick.type === 'adj') return brick.w / BRICK_L
+  if (brick.type === 'adj') {
+    const reference = cutReferenceDimension(brick, bondPattern, dimensions)
+    return brick.w > reference / 2 ? 1 : 0.5
+  }
   return 1
 }
 
-function brickVolumeMm3(brick: BrickData): number {
-  return brick.w * BRICK_H * BRICK_W
+function brickVolumeMm3(brick: BrickData, dimensions: BrickDimensions): number {
+  return brick.w * dimensions.height * dimensions.width
 }
 
 function computeMetrics(params: {
@@ -125,6 +156,7 @@ function computeMetrics(params: {
   pierHeightM: number
   pierSpacingM: number
   cutBricks: string
+  brickDimensions: BrickDimensions
 }): {
   brickCount: number
   mortarVolumeM3: number
@@ -132,25 +164,39 @@ function computeMetrics(params: {
   const wallL = params.lengthM * 1000
   const wallHmm = params.heightM * 1000
   const bond = getBond(params.bondPattern) ?? getBond('stretcher')
+  const dimensions = params.brickDimensions
   if (!bond || wallL <= 0 || wallHmm <= 0) {
     return { brickCount: 0, mortarVolumeM3: 0 }
   }
 
   const pierTypeSafe = params.pierType || 'none'
-  const pierSizeSafe = params.pierSize || '1_5x1_5'
+  const requestedPierSize = params.pierSize || '1_5x1_5'
+  const pierSizeSafe =
+    params.bondPattern === 'stack' &&
+    pierTypeSafe === 'hidden' &&
+    requestedPierSize !== '2x1' &&
+    requestedPierSize !== '2x2'
+      ? '2x1'
+      : (params.bondPattern === 'stack' || params.bondPattern === 'stretcher') &&
+        pierTypeSafe === 'exposed' &&
+        requestedPierSize !== '2x2'
+      ? '2x2'
+      : requestedPierSize
   const cutBricksSafe = params.cutBricks || 'allowed'
-  const pierSpec = PIER_SPECS[pierSizeSafe] ?? PIER_SPECS['1_5x1_5']
+  const pierSpecs = buildPierSpecs(dimensions)
+  const pierSpec = pierSpecs[pierSizeSafe] ?? pierSpecs['1_5x1_5']
   const pierHeightMm = Math.max(
     wallHmm,
     params.pierHeightM > 0 ? params.pierHeightM * 1000 : wallHmm + PIER_EXTRA_HEIGHT_MM,
   )
   const desiredSpacingMm = Math.max(
-    BRICK_MODULE,
+    dimensions.length + dimensions.mortar,
     Math.min(MAX_PIER_SPACING_MM, params.pierSpacingM * 1000 || 2800),
   )
   const snappedRequestedSpacingMm = Math.max(
-    BRICK_MODULE,
-    Math.round(desiredSpacingMm / BRICK_MODULE) * BRICK_MODULE,
+    dimensions.length + dimensions.mortar,
+    Math.round(desiredSpacingMm / (dimensions.length + dimensions.mortar)) *
+      (dimensions.length + dimensions.mortar),
   )
   const useHiddenNoCutStretcher15x1 =
     pierTypeSafe === 'hidden' &&
@@ -165,8 +211,9 @@ function computeMetrics(params: {
   if (pierTypeSafe === 'none') {
     const result =
       cutBricksSafe === 'notAllowed'
-        ? tryGenerateNoCutBond(bond, wallL, wallHmm) ?? bond.generate({ wallL, wallH: wallHmm })
-        : bond.generate({ wallL, wallH: wallHmm })
+        ? tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions) ??
+          bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+        : bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
     renderedH = result.wallH
     wallSegments = [{
       left: 0,
@@ -179,10 +226,19 @@ function computeMetrics(params: {
     const bayCount = Math.max(1, Math.ceil(interiorSpan / snappedRequestedSpacingMm))
 
     if (useHiddenNoCutStretcher15x1) {
-      const wallInset = BRICK_W + MORTAR_T
+      const wallInset = dimensions.width + dimensions.mortar
       const snappedWall =
-        tryGenerateNoCutBond(bond, Math.max(BRICK_L, wallL - wallInset * 2), wallHmm) ??
-        bond.generate({ wallL: Math.max(BRICK_L, wallL - wallInset * 2), wallH: wallHmm })
+        tryGenerateNoCutBond(
+          bond,
+          Math.max(dimensions.length, wallL - wallInset * 2),
+          wallHmm,
+          dimensions,
+        ) ??
+        bond.generate({
+          wallL: Math.max(dimensions.length, wallL - wallInset * 2),
+          wallH: wallHmm,
+          brickDimensions: dimensions,
+        })
       const renderedW = snappedWall.wallW + wallInset * 2
       piers = Array.from({ length: bayCount + 1 }, (_, idx) => {
         const center =
@@ -208,8 +264,9 @@ function computeMetrics(params: {
     } else if (cutBricksSafe === 'notAllowed') {
       const snappedBay = tryGenerateNoCutBond(
         bond,
-        Math.max(BRICK_W, snappedRequestedSpacingMm - pierSpec.frontWidth),
+        Math.max(dimensions.width, snappedRequestedSpacingMm - pierSpec.frontWidth),
         wallHmm,
+        dimensions,
       )
 
       if (snappedBay) {
@@ -238,7 +295,7 @@ function computeMetrics(params: {
         renderedH = snappedBay.wallH
       }
     } else {
-      const bondResult = bond.generate({ wallL, wallH: wallHmm })
+      const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
       renderedH = bondResult.wallH
       piers = Array.from({ length: bayCount + 1 }, (_, idx) => {
         const center =
@@ -285,21 +342,27 @@ function computeMetrics(params: {
   }
 
   const wallBrickCount = wallSegments.reduce(
-    (sum, segment) => sum + segment.bricks.reduce((s, brick) => s + brickUnitCount(brick), 0),
+    (sum, segment) =>
+      sum +
+      segment.bricks.reduce(
+        (s, brick) => s + brickUnitCount(brick, dimensions, params.bondPattern),
+        0,
+      ),
     0,
   )
   const wallBrickVolume = wallSegments.reduce(
-    (sum, segment) => sum + segment.bricks.reduce((s, brick) => s + brickVolumeMm3(brick), 0),
+    (sum, segment) =>
+      sum + segment.bricks.reduce((s, brick) => s + brickVolumeMm3(brick, dimensions), 0),
     0,
   )
   const wallGrossVolume = wallSegments.reduce(
-    (sum, segment) => sum + segment.width * segment.height * BRICK_W,
+    (sum, segment) => sum + segment.width * segment.height * dimensions.width,
     0,
   )
 
-  const courseH = BRICK_H + MORTAR_T
-  const nPierRows = Math.max(1, Math.ceil((pierHeightMm + MORTAR_T) / courseH))
-  const wallRows = Math.max(1, Math.ceil((renderedH + MORTAR_T) / courseH))
+  const courseH = dimensions.height + dimensions.mortar
+  const nPierRows = Math.max(1, Math.ceil((pierHeightMm + dimensions.mortar) / courseH))
+  const wallRows = Math.max(1, Math.ceil((renderedH + dimensions.mortar) / courseH))
 
   const pierBrickCount = piers.reduce((sum, _, index) => {
     if (pierTypeSafe === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
@@ -314,9 +377,12 @@ function computeMetrics(params: {
 
   const pierBrickVolume = piers.reduce((sum, _, index) => {
     if (pierTypeSafe === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
-      return sum + Math.max(0, nPierRows - wallRows) * (BRICK_L + BRICK_W) * BRICK_H * BRICK_W
+      return sum + Math.max(0, nPierRows - wallRows) *
+        (dimensions.length + dimensions.width) *
+        dimensions.height *
+        dimensions.width
     }
-    const gross = pierSpec.frontWidth * pierHeightMm * BRICK_W
+    const gross = pierSpec.frontWidth * pierHeightMm * dimensions.width
     const fillRatio =
       pierSizeSafe === '2x1' || pierSizeSafe === '2x2'
         ? 0.78
@@ -329,7 +395,7 @@ function computeMetrics(params: {
     0,
   )
 
-  const totalBrickCount = wallBrickCount + pierBrickCount
+  const totalBrickCount = Math.ceil(wallBrickCount + pierBrickCount)
   const totalBrickVolume = wallBrickVolume + pierBrickVolume
   const totalGrossVolume = wallGrossVolume + pierGrossVolume
   const mortarVolumeM3 = Math.max(0, (totalGrossVolume - totalBrickVolume) / 1_000_000_000)
@@ -370,15 +436,29 @@ export default function CostPage() {
   const length = parseFloat(state.length) || 0
   const height = parseFloat(state.height) || 0
   const pierHeight = parseFloat(state.pierHeight) || 0
+  const brickDimensions = brickDimensionsFromStrings(state)
+  const brickDimensionsValid = validateBrickDimensions(brickDimensions)
+  const effectivePierSize =
+    state.bondPattern === 'stack' &&
+    state.pierType === 'hidden' &&
+    state.pierSize !== '2x1' &&
+    state.pierSize !== '2x2'
+      ? '2x1'
+      : (state.bondPattern === 'stack' || state.bondPattern === 'stretcher') &&
+        state.pierType === 'exposed' &&
+        state.pierSize !== '2x2'
+      ? '2x2'
+      : state.pierSize
   const metrics = computeMetrics({
     lengthM: length,
     heightM: height,
     bondPattern: state.bondPattern,
     pierType: state.pierType,
-    pierSize: state.pierSize,
+    pierSize: effectivePierSize,
     pierHeightM: pierHeight,
     pierSpacingM: parseFloat(state.pierSpacing) || 0,
     cutBricks: state.cutBricks,
+    brickDimensions: brickDimensionsValid ? brickDimensions : DEFAULT_BRICK_DIMENSIONS,
   })
 
   const openSaveDialog = () => {
@@ -397,11 +477,16 @@ export default function CostPage() {
       height: state.height,
       bondPattern: state.bondPattern,
       pierType: state.pierType,
-      pierSize: state.pierSize,
+      pierSize: effectivePierSize,
       pierHeight: state.pierHeight,
       pierSpacing: state.pierSpacing,
       cutBricks: state.cutBricks,
       timberFence: state.timberFence,
+      brickSizeMode: state.brickSizeMode,
+      brickLength: state.brickLength,
+      brickWidth: state.brickWidth,
+      brickHeight: state.brickHeight,
+      mortarJoint: state.mortarJoint,
       brickCount: metrics.brickCount,
       mortarVolumeM3: metrics.mortarVolumeM3,
     }
@@ -418,7 +503,7 @@ export default function CostPage() {
     navigate('/')
   }
 
-  const missingData = !length || !height || !state.bondPattern
+  const missingData = !length || !height || !state.bondPattern || !brickDimensionsValid
 
   useEffect(() => {
     if (missingData) navigate('/dimensions', { replace: true })
@@ -438,11 +523,19 @@ export default function CostPage() {
         <div className="divide-y divide-border">
           <Row label={t('cost.fenceLength')} value={`${length} ${t('cost.meters')}`} />
           <Row label={t('cost.fenceHeight')} value={`${height} ${t('cost.meters')}`} />
+          <Row
+            label={t('cost.brickSize')}
+            value={
+              state.brickSizeMode === 'custom'
+                ? `${t('dimensions.customBrick')}: ${brickDimensions.length} x ${brickDimensions.width} x ${brickDimensions.height} mm / ${brickDimensions.mortar} mm`
+                : `${t('dimensions.standardBrick')}: ${brickDimensions.length} x ${brickDimensions.width} x ${brickDimensions.height} mm / ${brickDimensions.mortar} mm`
+            }
+          />
           <Row label={t('cost.bondPattern')} value={t(`bond.${state.bondPattern}`)} />
           <Row label={t('cost.cutBricks')} value={t(`cutBricks.options.${state.cutBricks}`)} />
           <Row label={t('cost.pierType')} value={t(`pier.types.${state.pierType}`)} />
           {state.pierType !== 'none' && (
-            <Row label={t('cost.pierSize')} value={t(`pier.sizes.${state.pierSize}`)} />
+            <Row label={t('cost.pierSize')} value={t(`pier.sizes.${effectivePierSize}`)} />
           )}
           {state.pierType !== 'none' && (
             <Row label={t('cost.pierHeight')} value={`${state.pierHeight} ${t('cost.meters')}`} />
@@ -459,7 +552,7 @@ export default function CostPage() {
               value={t(`pier.timberFenceOptions.${state.timberFence}`)}
             />
           )}
-          <Row label={t('cost.brickCount')} value={metrics.brickCount.toFixed(1)} />
+          <Row label={t('cost.brickCount')} value={metrics.brickCount.toString()} />
           <Row
             label={t('cost.mortarVolume')}
             value={`${metrics.mortarVolumeM3.toFixed(3)} ${t('cost.cubicMeters')}`}
@@ -467,7 +560,7 @@ export default function CostPage() {
           <div className="flex justify-between px-6 py-4 bg-primary/5">
             <span className="font-bold text-text">{t('cost.summary')}</span>
             <span className="font-bold text-primary text-lg">
-              {metrics.brickCount.toFixed(1)} / {metrics.mortarVolumeM3.toFixed(3)} {t('cost.cubicMeters')}
+              {metrics.brickCount} / {metrics.mortarVolumeM3.toFixed(3)} {t('cost.cubicMeters')}
             </span>
           </div>
         </div>
@@ -519,11 +612,12 @@ export default function CostPage() {
         heightM={height}
         bondPattern={state.bondPattern}
         pierType={state.pierType}
-        pierSize={state.pierSize}
+        pierSize={effectivePierSize}
         pierHeightM={pierHeight}
         pierSpacingM={parseFloat(state.pierSpacing) || 0}
         cutBricks={state.cutBricks}
         timberFence={state.timberFence}
+        brickDimensions={brickDimensions}
         showDiagram={length > 0 && height > 0}
       />
 

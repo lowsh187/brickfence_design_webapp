@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
+import {
+  DEFAULT_BRICK_DIMENSIONS,
+  MIN_BRICK_WIDTH,
+  MIN_CUT_BRICK_DIMENSION,
+  brickDimensionsFromStrings,
+  validateBrickDimensions,
+} from '../bonds/brickDimensions'
 
 const MAX_HEIGHT = 2
 
@@ -13,8 +20,78 @@ export default function DimensionsPage() {
 
   const length = parseFloat(state.length) || 0
   const height = parseFloat(state.height) || 0
+  const brickDimensions = brickDimensionsFromStrings(state)
+  const brickDimensionsValid = validateBrickDimensions(brickDimensions)
+  const usingCustomBrickSize = state.brickSizeMode === 'custom'
   const heightTooHigh = height > MAX_HEIGHT
-  const canProceed = length > 0 && height > 0 && !heightTooHigh
+  const canProceed = length > 0 && height > 0 && !heightTooHigh && brickDimensionsValid
+
+  const setStandardBrickSize = () => {
+    dispatch({ type: 'SET_FIELD', field: 'brickSizeMode', value: 'standard' })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickLength',
+      value: DEFAULT_BRICK_DIMENSIONS.length.toString(),
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickWidth',
+      value: DEFAULT_BRICK_DIMENSIONS.width.toString(),
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickHeight',
+      value: DEFAULT_BRICK_DIMENSIONS.height.toString(),
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'mortarJoint',
+      value: DEFAULT_BRICK_DIMENSIONS.mortar.toString(),
+    })
+  }
+
+  const formatDimensionValue = (value: number) => {
+    if (!Number.isFinite(value)) return ''
+    return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.?0+$/, '')
+  }
+
+  const handleBrickFieldChange = (
+    field: 'brickLength' | 'brickWidth' | 'brickHeight' | 'mortarJoint',
+    value: string,
+  ) => {
+    dispatch({ type: 'SET_FIELD', field, value })
+
+    const numericValue = parseFloat(value)
+    const mortar = parseFloat(state.mortarJoint) || DEFAULT_BRICK_DIMENSIONS.mortar
+
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return
+
+    if (field === 'brickLength') {
+      const calculatedWidth = (numericValue - mortar) / 2
+      if (calculatedWidth >= MIN_BRICK_WIDTH) {
+        dispatch({
+          type: 'SET_FIELD',
+          field: 'brickWidth',
+          value: formatDimensionValue(calculatedWidth),
+        })
+      }
+    }
+
+    if (field === 'brickWidth') {
+      dispatch({
+        type: 'SET_FIELD',
+        field: 'brickLength',
+        value: formatDimensionValue(numericValue * 2 + mortar),
+      })
+    }
+  }
+
+  const brickFields = [
+    { field: 'brickLength' as const, label: t('dimensions.brickLength') },
+    { field: 'brickWidth' as const, label: t('dimensions.brickWidth') },
+    { field: 'brickHeight' as const, label: t('dimensions.brickHeight') },
+    { field: 'mortarJoint' as const, label: t('dimensions.mortarJoint') },
+  ]
 
   const form = (
     <div className="bg-white rounded-2xl shadow-sm border border-border p-8">
@@ -67,6 +144,95 @@ export default function DimensionsPage() {
             </p>
           )}
         </div>
+
+        <div className="rounded-2xl border border-border bg-surface-alt/60 p-5">
+          <h2 className="text-base font-semibold text-text">
+            {t('dimensions.brickSizeHeading')}
+          </h2>
+          <p className="mt-1 text-sm text-text-muted">
+            {t('dimensions.brickSizeDescription')}
+          </p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={setStandardBrickSize}
+              className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                !usingCustomBrickSize
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-gray-300 hover:bg-white'
+              }`}
+            >
+              <div className="font-semibold text-text">{t('dimensions.standardBrick')}</div>
+              <div className="mt-1 text-xs text-text-muted">
+                {t('dimensions.standardBrickDesc')}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                dispatch({ type: 'SET_FIELD', field: 'brickSizeMode', value: 'custom' })
+              }
+              className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                usingCustomBrickSize
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-gray-300 hover:bg-white'
+              }`}
+            >
+              <div className="font-semibold text-text">{t('dimensions.customBrick')}</div>
+              <div className="mt-1 text-xs text-text-muted">
+                {t('dimensions.customBrickDesc')}
+              </div>
+            </button>
+          </div>
+
+          {!usingCustomBrickSize && (
+            <p className="mt-3 text-xs text-text-muted">
+              {t('dimensions.standardBrickSummary')}
+            </p>
+          )}
+          {usingCustomBrickSize && (
+            <>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {brickFields.map(({ field, label }) => (
+                  <div key={field}>
+                    <label className="block text-sm font-medium text-text mb-2">
+                      {label} ({t('dimensions.mmUnit')})
+                    </label>
+                    <input
+                      type="number"
+                      min={field === 'brickWidth' ? MIN_BRICK_WIDTH : 1}
+                      step="1"
+                      value={state[field]}
+                      onChange={(e) =>
+                        handleBrickFieldChange(field, e.target.value)
+                      }
+                      className={`w-full px-4 py-3 rounded-xl border bg-white focus:outline-none focus:ring-2 transition-colors text-text ${
+                        !brickDimensionsValid
+                          ? 'border-red-400 focus:ring-red-200 focus:border-red-400'
+                          : 'border-border focus:ring-primary/30 focus:border-primary'
+                      }`}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-3 text-xs text-text-muted">
+                {t('dimensions.brickSizeRule')}
+              </p>
+              {!brickDimensionsValid && (
+                <p className="mt-1.5 text-xs text-red-500">
+                  {t('dimensions.brickSizeError')}
+                </p>
+              )}
+            </>
+          )}
+          <div className="mt-4 rounded-xl border border-border bg-white p-4 text-xs leading-relaxed text-text-muted">
+            {t('dimensions.cutBrickMinimumHint', {
+              min: MIN_CUT_BRICK_DIMENSION,
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-between mt-10">
@@ -107,7 +273,8 @@ export default function DimensionsPage() {
         pierSpacingM={parseFloat(state.pierSpacing) || 0}
         cutBricks={state.cutBricks}
         timberFence={state.timberFence}
-        showDiagram={length > 0 && height > 0 && !heightTooHigh}
+        brickDimensions={brickDimensions}
+        showDiagram={length > 0 && height > 0 && !heightTooHigh && brickDimensionsValid}
       />
     </div>
   )

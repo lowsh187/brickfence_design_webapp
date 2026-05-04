@@ -16,6 +16,11 @@ interface SavedQuote {
   pierSpacing: string
   cutBricks: string
   timberFence: string
+  brickSizeMode?: string
+  brickLength?: string
+  brickWidth?: string
+  brickHeight?: string
+  mortarJoint?: string
   brickCount?: number
   mortarVolumeM3?: number
 }
@@ -94,6 +99,31 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
       field: 'timberFence',
       value: quote.timberFence || 'none',
     })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickSizeMode',
+      value: quote.brickSizeMode || 'standard',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickLength',
+      value: quote.brickLength || '230',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickWidth',
+      value: quote.brickWidth || '110',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'brickHeight',
+      value: quote.brickHeight || '76',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'mortarJoint',
+      value: quote.mortarJoint || '10',
+    })
     dispatch({ type: 'SET_FIELD', field: 'activeQuoteName', value: quote.name })
     onClose()
     navigate('/cost')
@@ -138,7 +168,7 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
                       <p className="text-xs text-text-muted">{t('quotes.date')}: {quote.date}</p>
                     </div>
                     <span className="text-primary font-bold">
-                      {(quote.brickCount ?? 0).toFixed(1)} / {(quote.mortarVolumeM3 ?? 0).toFixed(3)} m³
+                      {Math.ceil(quote.brickCount ?? 0)} / {(quote.mortarVolumeM3 ?? 0).toFixed(3)} m³
                     </span>
                   </div>
                   <div className="text-sm text-text-muted mb-3">
