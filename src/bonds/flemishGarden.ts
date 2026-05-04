@@ -1,10 +1,5 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
-
-const BRICK_L = 230
-const BRICK_H = 76
-const HALF_L = 110
-const MORTAR_T = 10
-const START_ADJ = 170
+import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
 
 interface RowElem {
   x: number
@@ -19,130 +14,138 @@ interface RowResult {
   renderedL: number
 }
 
-const ODD_ROW_WIDTHS = [
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L,
-]
+function appendPiece(
+  elems: RowElem[],
+  x: number,
+  w: number,
+  dimensions: BrickDimensions,
+  type?: RowElem['type'],
+): number {
+  elems.push({
+    x: Math.round(x),
+    w: Math.round(w),
+    type: type ?? (w === dimensions.width ? 'half' : 'full'),
+  })
+  return x + w
+}
 
-const EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF = [
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-  BRICK_L, BRICK_L, BRICK_L, HALF_L,
-]
+function renderedLength(elems: RowElem[]): number {
+  if (elems.length === 0) return 0
+  const last = elems[elems.length - 1]
+  return last.x + last.w
+}
 
-function oddRow(wallL: number): RowResult {
-  const fixedWidth = ODD_ROW_WIDTHS.reduce((sum, w) => sum + w, 0)
-  const baseNoAdjLength = fixedWidth + (ODD_ROW_WIDTHS.length - 1) * MORTAR_T
-  const delta = wallL - baseNoAdjLength
-
-  let snapped = false
+function appendRepeatingPattern(
+  elems: RowElem[],
+  startX: number,
+  wallL: number,
+  pattern: number[],
+  dimensions: BrickDimensions,
+): { renderedL: number; adjPieceLength: number } {
+  let x = startX
+  let patternIndex = 0
   let adjPieceLength = 0
 
-  if (delta >= 2 * MORTAR_T) {
-    adjPieceLength = delta - MORTAR_T
-  } else if (delta > 0 || delta < 0) {
-    snapped = true
-  }
+  while (x < wallL) {
+    const w = pattern[patternIndex % pattern.length]
+    const remaining = wallL - x
 
-  const elems: RowElem[] = []
-  let x = 0
-
-  for (let i = 0; i < ODD_ROW_WIDTHS.length; i++) {
-    const w = ODD_ROW_WIDTHS[i]
-    elems.push({ x: Math.round(x), w, type: w === HALF_L ? 'half' : 'full' })
-    x += w
-    x += MORTAR_T
-  }
-
-  if (adjPieceLength > 0) {
-    elems.push({ x: Math.round(x), w: Math.round(adjPieceLength), type: 'adj' })
-    x += adjPieceLength
-  } else {
-    x -= MORTAR_T
-  }
-
-  return {
-    elems,
-    snapped,
-    adjPieceLength,
-    renderedL: x,
-  }
-}
-
-function evenRow(wallL: number): RowResult {
-  const fixedWidth = EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF.reduce((sum, w) => sum + w, 0)
-  const baseNoEndAdjLength =
-    HALF_L + MORTAR_T +
-    START_ADJ + MORTAR_T +
-    HALF_L + MORTAR_T +
-    fixedWidth + (EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF.length - 1) * MORTAR_T
-
-  const delta = wallL - baseNoEndAdjLength
-
-  let snapped = false
-  let endAdjLength = 0
-
-  if (delta >= 2 * MORTAR_T) {
-    endAdjLength = delta - MORTAR_T
-  } else if (delta > 0 || delta < 0) {
-    snapped = true
-  }
-
-  const elems: RowElem[] = []
-  let x = 0
-
-  elems.push({ x: Math.round(x), w: HALF_L, type: 'half' })
-  x += HALF_L + MORTAR_T
-
-  elems.push({ x: Math.round(x), w: START_ADJ, type: 'adj' })
-  x += START_ADJ + MORTAR_T
-
-  elems.push({ x: Math.round(x), w: HALF_L, type: 'half' })
-  x += HALF_L + MORTAR_T
-
-  for (let i = 0; i < EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF.length; i++) {
-    const w = EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF[i]
-    elems.push({ x: Math.round(x), w, type: w === HALF_L ? 'half' : 'full' })
-    x += w
-    if (i < EVEN_ROW_FIXED_WIDTHS_AFTER_SECOND_HALF.length - 1 || endAdjLength > 0) {
-      x += MORTAR_T
+    if (remaining >= w) {
+      x = appendPiece(elems, x, w, dimensions)
+    } else {
+      adjPieceLength = remaining
+      x = appendPiece(elems, x, remaining, dimensions, 'adj')
+      break
     }
-  }
 
-  if (endAdjLength > 0) {
-    elems.push({ x: Math.round(x), w: Math.round(endAdjLength), type: 'adj' })
-    x += endAdjLength
+    if (wallL - x <= dimensions.mortar) break
+    x += dimensions.mortar
+    patternIndex++
   }
 
   return {
-    elems,
-    snapped,
-    adjPieceLength: endAdjLength,
-    renderedL: x,
+    renderedL: renderedLength(elems),
+    adjPieceLength,
   }
 }
 
-function generate({ wallL, wallH }: BondParams): BondResult {
-  const courseH = BRICK_H + MORTAR_T
-  const nRows = Math.ceil((wallH + MORTAR_T) / courseH)
-  const wallPixH = nRows * courseH - MORTAR_T
+function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
+  const { length: brickL, width: brickW } = dimensions
+  const elems: RowElem[] = []
+  const result = appendRepeatingPattern(
+    elems,
+    0,
+    wallL,
+    [brickL, brickL, brickL, brickW],
+    dimensions,
+  )
 
-  const odd = oddRow(wallL)
-  const even = evenRow(wallL)
+  return {
+    elems,
+    snapped: false,
+    adjPieceLength: result.adjPieceLength,
+    renderedL: result.renderedL,
+  }
+}
+
+function evenRow(wallL: number, dimensions: BrickDimensions): RowResult {
+  const { length: brickL, width: brickW, mortar } = dimensions
+  const startAdj = Math.round((brickL + brickW) / 2)
+  const elems: RowElem[] = []
+  let x = 0
+
+  const prefix: Array<{ w: number; type?: RowElem['type'] }> = [
+    { w: brickW, type: 'half' },
+    { w: startAdj, type: 'adj' },
+    { w: brickW, type: 'half' },
+  ]
+
+  for (const piece of prefix) {
+    if (x >= wallL) break
+    const remaining = wallL - x
+    if (remaining < piece.w) {
+      x = appendPiece(elems, x, remaining, dimensions, 'adj')
+      break
+    }
+    x = appendPiece(elems, x, piece.w, dimensions, piece.type)
+    if (wallL - x <= mortar) break
+    x += mortar
+  }
+
+  const result = appendRepeatingPattern(
+    elems,
+    x,
+    wallL,
+    [brickL, brickL, brickL, brickW],
+    dimensions,
+  )
+
+  return {
+    elems,
+    snapped: false,
+    adjPieceLength: result.adjPieceLength,
+    renderedL: result.renderedL,
+  }
+}
+
+function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
+  const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
+  const courseH = dimensions.height + dimensions.mortar
+  const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
+  const wallPixH = nRows * courseH - dimensions.mortar
+
+  const odd = oddRow(wallL, dimensions)
+  const even = evenRow(wallL, dimensions)
 
   const bricks: BrickData[] = []
   let brickCount = 0
 
   for (let r = 0; r < nRows; r++) {
     const row = r % 2 === 0 ? odd : even
-    const y = wallPixH - ((r + 1) * courseH - MORTAR_T)
+    const y = wallPixH - ((r + 1) * courseH - dimensions.mortar)
 
     for (const b of row.elems) {
-      bricks.push({ x: b.x, y, w: b.w, h: BRICK_H, row: r, type: b.type })
+      bricks.push({ x: b.x, y, w: b.w, h: dimensions.height, row: r, type: b.type })
       if (b.type !== 'adj') brickCount++
     }
   }

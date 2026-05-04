@@ -28,9 +28,24 @@
     "length": "围栏长度",
     "height": "围栏高度",
     "unit": "米",
+    "mmUnit": "mm",
     "lengthPlaceholder": "输入长度（米）",
     "heightPlaceholder": "输入高度（米）",
-    "maxHeightError": "高度不能超过 {{max}} 米"
+    "maxHeightError": "高度不能超过 {{max}} 米",
+    "brickSizeHeading": "砖块尺寸",
+    "brickSizeDescription": "使用标准砖尺寸，或自定义砖块尺寸。",
+    "standardBrick": "标准砖",
+    "standardBrickDesc": "使用 230 x 110 x 76 mm，灰缝 10 mm。",
+    "standardBrickSummary": "标准砖：230 x 110 x 76 mm，灰缝 10 mm。",
+    "customBrick": "自定义砖",
+    "customBrickDesc": "为当前排布设置合法的自定义尺寸。",
+    "brickLength": "砖长",
+    "brickWidth": "砖宽",
+    "brickHeight": "砖高",
+    "mortarJoint": "灰缝厚度",
+    "brickSizeRule": "必需规则：砖长 = 两个砖宽 + 一个灰缝厚度。",
+    "brickSizeError": "砖块尺寸无效。砖长必须等于两个砖宽加一个灰缝厚度，并且砖宽至少为 50 mm。",
+    "cutBrickMinimumHint": "切砖只会切长度或宽度，不会切高度；一次只能切一个方向。切完后保留的长度或宽度最小为 {{min}} mm。"
   },
   "bond": {
     "heading": "砌筑样式",
@@ -58,6 +73,11 @@
     "spacing": "砖柱间距",
     "spacingHint": "中心距会按 0.24 米砖模数吸附，且不得超过 3.0 米。",
     "spacingError": "砖柱中心距不能超过 3.0 米。",
+    "hiddenSizeUnavailable": "当前 stack bond 模型中的隐藏砖柱只定义了 2砖 x 1砖 和 2砖 x 2砖。",
+    "stackHiddenSizeUnavailable": "当前 stack bond 模型中的隐藏砖柱只定义了 2砖 x 1砖 和 2砖 x 2砖。",
+    "stretcherHiddenSizeUnavailable": "当前 stretcher bond 模型中的隐藏砖柱遵循表格已定义的尺寸。",
+    "exposedSizeUnavailable": "当前表格模型中的外露砖柱只定义了 2砖 x 2砖。",
+    "stackExposedSizeUnavailable": "当前 stack bond 模型中的外露砖柱只定义了 2砖 x 2砖。",
     "types": {
       "none": "无砖柱",
       "hidden": "隐藏砖柱",
@@ -102,7 +122,8 @@
       "allowed": "使用当前已实现的逻辑，在需要时允许端部出现切砖。",
       "notAllowed": "仅允许整砖/半砖，并通过缩短或加长墙段来调整长度。"
     },
-    "note": "不允许切砖时，系统会把柱间墙段和整体墙长吸附到最近的合法砖块排布。"
+    "note": "不允许切砖时，系统会把柱间墙段和整体墙长吸附到最近的合法砖块排布。",
+    "noCutUnavailable": "完全不切砖目前只支持顺砖砌法和叠砖砌法。"
   },
   "diagram": {
     "previewTitle": "墙体预览",
@@ -114,6 +135,7 @@
     "breakdown": "成本明细",
     "fenceLength": "围栏长度",
     "fenceHeight": "围栏高度",
+    "brickSize": "砖块尺寸",
     "bondPattern": "砌筑样式",
     "cutBricks": "切砖规则",
     "pierType": "砖柱类型",

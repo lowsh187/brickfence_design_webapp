@@ -28,9 +28,24 @@
     "length": "Fence Length",
     "height": "Fence Height",
     "unit": "meters",
+    "mmUnit": "mm",
     "lengthPlaceholder": "Enter length in meters",
     "heightPlaceholder": "Enter height in meters",
-    "maxHeightError": "Height cannot exceed {{max}}m"
+    "maxHeightError": "Height cannot exceed {{max}}m",
+    "brickSizeHeading": "Brick Size",
+    "brickSizeDescription": "Use the standard brick size or customise the dimensions.",
+    "standardBrick": "Standard brick",
+    "standardBrickDesc": "Use 230 x 110 x 76 mm with a 10 mm mortar joint.",
+    "standardBrickSummary": "Standard brick: 230 x 110 x 76 mm, mortar joint 10 mm.",
+    "customBrick": "Custom brick",
+    "customBrickDesc": "Set a valid custom size for this layout.",
+    "brickLength": "Brick Length",
+    "brickWidth": "Brick Width",
+    "brickHeight": "Brick Height",
+    "mortarJoint": "Mortar Joint",
+    "brickSizeRule": "Required rule: brick length = two brick widths + one mortar joint.",
+    "brickSizeError": "Invalid brick size. Brick length must equal two brick widths plus one mortar joint, and brick width must be at least 50 mm.",
+    "cutBrickMinimumHint": "Cut bricks are only cut in length or width, never height. Only one dimension can be cut at a time, and the remaining cut length or width must be at least {{min}} mm."
   },
   "bond": {
     "heading": "Bond Pattern",
@@ -58,6 +73,11 @@
     "spacing": "Pier spacing",
     "spacingHint": "Centres are snapped in 0.24m brick modules and must stay at or below 3.0m.",
     "spacingError": "Pier spacing cannot exceed 3.0m centre-to-centre.",
+    "hiddenSizeUnavailable": "Hidden piers for the current stack-bond model are only defined as 2 bricks x 1 brick or 2 bricks x 2 bricks.",
+    "stackHiddenSizeUnavailable": "Hidden piers for the current stack-bond model are only defined as 2 bricks x 1 brick or 2 bricks x 2 bricks.",
+    "stretcherHiddenSizeUnavailable": "Hidden piers for the current stretcher-bond model follow the workbook-defined pier sizes.",
+    "exposedSizeUnavailable": "Exposed piers for the current workbook model are only defined as 2 bricks x 2 bricks.",
+    "stackExposedSizeUnavailable": "Exposed piers for the current stack-bond model are only defined as 2 bricks x 2 bricks.",
     "types": {
       "none": "No piers",
       "hidden": "Hidden piers",
@@ -102,7 +122,8 @@
       "allowed": "Use the current implementation, which can trim end bricks where needed.",
       "notAllowed": "Use only full/half brick outcomes with shorter or longer bay adjustments."
     },
-    "note": "No-cut mode snaps wall bays and overall wall length to the nearest valid brick layout."
+    "note": "No-cut mode snaps wall bays and overall wall length to the nearest valid brick layout.",
+    "noCutUnavailable": "No-cut mode is only available for Stretcher Bond and Stack Bond."
   },
   "diagram": {
     "previewTitle": "Wall Preview",
@@ -114,6 +135,7 @@
     "breakdown": "Cost Breakdown",
     "fenceLength": "Fence Length",
     "fenceHeight": "Fence Height",
+    "brickSize": "Brick Size",
     "bondPattern": "Bond Pattern",
     "cutBricks": "Cut Bricks",
     "pierType": "Pier Type",

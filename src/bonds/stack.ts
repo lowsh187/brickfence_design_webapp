@@ -1,8 +1,5 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
-
-const BRICK_L = 230
-const BRICK_H = 76
-const MORTAR_T = 10
+import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
 
 interface RowElem {
   x: number
@@ -17,45 +14,42 @@ interface RowResult {
   renderedL: number
 }
 
-function calculateStackRow(wallL: number): RowResult {
+function calculateStackRow(wallL: number, dimensions: BrickDimensions): RowResult {
   // Stack bond: distribute bricks evenly across the wall width
   // Use full bricks where possible, with adjustment pieces to fill gaps
 
   const elems: RowElem[] = []
   let x = 0
-  let brickCount = 0
 
   // Calculate how many full bricks plus mortar joints fit
-  const unit = BRICK_L + MORTAR_T
-  const nUnits = Math.floor((wallL + MORTAR_T) / unit)
+  const { length: brickL, mortar } = dimensions
+  const unit = brickL + mortar
+  const nUnits = Math.floor((wallL + mortar) / unit)
 
   // Place full bricks with mortar joints
   for (let i = 0; i < nUnits; i++) {
-    elems.push({ x: Math.round(x), w: BRICK_L, type: 'full' })
-    brickCount++
-    x += BRICK_L + MORTAR_T
+    elems.push({ x: Math.round(x), w: brickL, type: 'full' })
+    x += brickL + mortar
   }
 
   // Calculate remaining space for adjustment piece
-  const remaining = wallL - x + MORTAR_T // + MORTAR_T because we didn't add the last mortar
+  const remaining = wallL - x + mortar
 
   let snapped = false
   let adjPieceLength = 0
 
   if (remaining > 0) {
     // Use dead-zone snapping like stretcher bond
-    if (remaining < 2 * MORTAR_T) {
+    if (remaining < 2 * mortar) {
       snapped = true
-      // Snap to either 0 or 2*MORTAR_T
-      const snappedRemaining = remaining <= MORTAR_T ? 0 : 2 * MORTAR_T
+      const snappedRemaining = remaining <= mortar ? 0 : 2 * mortar
       if (snappedRemaining > 0) {
-        adjPieceLength = snappedRemaining - MORTAR_T
+        adjPieceLength = snappedRemaining - mortar
         elems.push({ x: Math.round(x), w: Math.round(adjPieceLength), type: 'adj' })
         x += adjPieceLength
       }
     } else {
-      // Large enough gap - add adjustment piece
-      adjPieceLength = remaining - MORTAR_T
+      adjPieceLength = remaining - mortar
       elems.push({ x: Math.round(x), w: Math.round(adjPieceLength), type: 'adj' })
       x += adjPieceLength
     }
@@ -65,25 +59,26 @@ function calculateStackRow(wallL: number): RowResult {
     elems,
     snapped,
     adjPieceLength,
-    renderedL: x
+    renderedL: elems.length > 0 ? elems[elems.length - 1].x + elems[elems.length - 1].w : 0,
   }
 }
 
-function generate({ wallL, wallH }: BondParams): BondResult {
-  const courseH = BRICK_H + MORTAR_T
-  const nRows = Math.ceil((wallH + MORTAR_T) / courseH)
-  const wallPixH = nRows * courseH - MORTAR_T
+function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
+  const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
+  const courseH = dimensions.height + dimensions.mortar
+  const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
+  const wallPixH = nRows * courseH - dimensions.mortar
 
   // Calculate row layout once - all rows are identical in stack bond
-  const rowResult = calculateStackRow(wallL)
+  const rowResult = calculateStackRow(wallL, dimensions)
 
   const bricks: BrickData[] = []
   let brickCount = 0
 
   for (let r = 0; r < nRows; r++) {
-    const y = wallPixH - ((r + 1) * courseH - MORTAR_T)
+    const y = wallPixH - ((r + 1) * courseH - dimensions.mortar)
     for (const b of rowResult.elems) {
-      bricks.push({ x: b.x, y, w: b.w, h: BRICK_H, row: r, type: b.type })
+      bricks.push({ x: b.x, y, w: b.w, h: dimensions.height, row: r, type: b.type })
       if (b.type !== 'adj') brickCount++
     }
   }

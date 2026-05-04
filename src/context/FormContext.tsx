@@ -10,6 +10,11 @@ import {
 export interface FormState {
   length: string
   height: string
+  brickSizeMode: string
+  brickLength: string
+  brickWidth: string
+  brickHeight: string
+  mortarJoint: string
   bondPattern: string
   pierType: string
   pierSize: string
@@ -28,6 +33,11 @@ type FormAction =
 const initialState: FormState = {
   length: '',
   height: '',
+  brickSizeMode: 'standard',
+  brickLength: '230',
+  brickWidth: '110',
+  brickHeight: '76',
+  mortarJoint: '10',
   bondPattern: 'stretcher',
   pierType: 'none',
   pierSize: '1_5x1_5',
@@ -62,6 +72,11 @@ function loadState(): FormState {
       return {
         length: merged.length ?? '',
         height: merged.height ?? '',
+        brickSizeMode: merged.brickSizeMode || 'standard',
+        brickLength: merged.brickLength ?? '230',
+        brickWidth: merged.brickWidth ?? '110',
+        brickHeight: merged.brickHeight ?? '76',
+        mortarJoint: merged.mortarJoint ?? '10',
         bondPattern: merged.bondPattern || 'stretcher',
         pierType: merged.pierType || 'none',
         pierSize: merged.pierSize || '1_5x1_5',

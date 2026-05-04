@@ -1,8 +1,5 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
-
-const BRICK_H = 76
-const HEADER_W = 110 // Header width (when laid horizontally)
-const MORTAR_T = 10
+import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
 
 interface RowElem {
   x: number
@@ -15,31 +12,32 @@ interface RowResult {
   renderedL: number
 }
 
-function oddRow(wallL: number): RowResult {
+function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
   // Header bond odd row: all headers (110mm wide), starts with adjustment piece
   // Pattern: adj(75) H H H ... H
   const elems: RowElem[] = []
   let x = 0
+  const { width: headerW, mortar } = dimensions
 
   // Start with adjustment piece (75mm)
-  const adjWidth = 75
+  const adjWidth = Math.round(headerW * 0.68)
   elems.push({ x: Math.round(x), w: adjWidth, type: 'adj' })
-  x += adjWidth + MORTAR_T
+  x += adjWidth + mortar
 
   // Fill rest with headers
-  while (x + HEADER_W < wallL) {
-    elems.push({ x: Math.round(x), w: HEADER_W, type: 'full' })
-    x += HEADER_W + MORTAR_T
+  while (x + headerW < wallL) {
+    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
+    x += headerW + mortar
   }
 
   // Check if we need final adjustment piece
-  const remaining = wallL - x + MORTAR_T
-  if (remaining > 0 && remaining >= HEADER_W) {
-    elems.push({ x: Math.round(x), w: HEADER_W, type: 'full' })
-    x += HEADER_W
-  } else if (remaining > 0 && remaining > HEADER_W - 5) {
+  const remaining = wallL - x + mortar
+  if (remaining > 0 && remaining >= headerW) {
+    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
+    x += headerW
+  } else if (remaining > 0 && remaining > headerW - 5) {
     // Small gap - use adjustment piece
-    const adjWidth = remaining - MORTAR_T
+    const adjWidth = remaining - mortar
     elems.push({ x: Math.round(x), w: Math.round(adjWidth), type: 'adj' })
     x += adjWidth
   }
@@ -47,31 +45,32 @@ function oddRow(wallL: number): RowResult {
   return { elems, renderedL: x }
 }
 
-function evenRow(wallL: number): RowResult {
+function evenRow(wallL: number, dimensions: BrickDimensions): RowResult {
   // Header bond even row: all headers (110mm wide), starts with adjustment piece
   // Pattern: adj(55) H H H ... H
   const elems: RowElem[] = []
   let x = 0
+  const { width: headerW, mortar } = dimensions
 
   // Start with adjustment piece (55mm)
-  const adjWidth = 55
+  const adjWidth = Math.round(headerW / 2)
   elems.push({ x: Math.round(x), w: adjWidth, type: 'adj' })
-  x += adjWidth + MORTAR_T
+  x += adjWidth + mortar
 
   // Fill rest with headers
-  while (x + HEADER_W < wallL) {
-    elems.push({ x: Math.round(x), w: HEADER_W, type: 'full' })
-    x += HEADER_W + MORTAR_T
+  while (x + headerW < wallL) {
+    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
+    x += headerW + mortar
   }
 
   // Check if we need final adjustment piece
-  const remaining = wallL - x + MORTAR_T
-  if (remaining > 0 && remaining >= HEADER_W) {
-    elems.push({ x: Math.round(x), w: HEADER_W, type: 'full' })
-    x += HEADER_W
-  } else if (remaining > 0 && remaining > HEADER_W - 5) {
+  const remaining = wallL - x + mortar
+  if (remaining > 0 && remaining >= headerW) {
+    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
+    x += headerW
+  } else if (remaining > 0 && remaining > headerW - 5) {
     // Small gap - use adjustment piece
-    const adjWidth = remaining - MORTAR_T
+    const adjWidth = remaining - mortar
     elems.push({ x: Math.round(x), w: Math.round(adjWidth), type: 'adj' })
     x += adjWidth
   }
@@ -79,29 +78,32 @@ function evenRow(wallL: number): RowResult {
   return { elems, renderedL: x }
 }
 
-function generate({ wallL, wallH }: BondParams): BondResult {
+function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   // Header bond has all headers (110mm wide), so row height is just brick height + mortar
-  const courseH = BRICK_H + MORTAR_T
-  const nRows = Math.ceil((wallH + MORTAR_T) / courseH)
-  const wallPixH = nRows * courseH - MORTAR_T
+  const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
+  const courseH = dimensions.height + dimensions.mortar
+  const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
+  const wallPixH = nRows * courseH - dimensions.mortar
 
   const bricks: BrickData[] = []
   let brickCount = 0
+  let wallPixW = 0
 
   for (let r = 0; r < nRows; r++) {
     const isOdd = r % 2 === 0
-    const rowResult = isOdd ? oddRow(wallL) : evenRow(wallL)
-    const y = wallPixH - ((r + 1) * courseH - MORTAR_T)
+    const rowResult = isOdd ? oddRow(wallL, dimensions) : evenRow(wallL, dimensions)
+    wallPixW = Math.max(wallPixW, rowResult.renderedL)
+    const y = wallPixH - ((r + 1) * courseH - dimensions.mortar)
 
     for (const b of rowResult.elems) {
-      bricks.push({ x: b.x, y, w: b.w, h: BRICK_H, row: r, type: b.type })
+      bricks.push({ x: b.x, y, w: b.w, h: dimensions.height, row: r, type: b.type })
       if (b.type !== 'adj') brickCount++
     }
   }
 
   return {
     bricks,
-    wallW: wallL,
+    wallW: wallPixW,
     wallH: wallPixH,
     nRows,
     brickCount,

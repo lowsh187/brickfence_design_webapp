@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import FenceDiagram from './FenceDiagram'
+import type { BrickDimensions } from '../bonds/brickDimensions'
 
 interface WizardLayoutProps {
   form: ReactNode
@@ -13,6 +14,7 @@ interface WizardLayoutProps {
   pierSpacingM?: number
   cutBricks?: string
   timberFence?: string
+  brickDimensions?: BrickDimensions
   showDiagram: boolean
 }
 
@@ -27,6 +29,7 @@ export default function WizardLayout({
   pierSpacingM,
   cutBricks,
   timberFence,
+  brickDimensions,
   showDiagram,
 }: WizardLayoutProps) {
   const { t } = useTranslation()
@@ -53,6 +56,7 @@ export default function WizardLayout({
                   pierSpacingM={pierSpacingM}
                   cutBricks={cutBricks}
                   timberFence={timberFence}
+                  brickDimensions={brickDimensions}
                 />
               </div>
             ) : (

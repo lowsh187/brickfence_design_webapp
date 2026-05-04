@@ -1,3 +1,5 @@
+import type { BrickDimensions } from './brickDimensions'
+
 export type BrickType = 'full' | 'half' | 'adj'
 
 export interface BrickData {
@@ -22,6 +24,7 @@ export interface BondResult {
 export interface BondParams {
   wallL: number
   wallH: number
+  brickDimensions?: BrickDimensions
 }
 
 export interface BondPattern {
