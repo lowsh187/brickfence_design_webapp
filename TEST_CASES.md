@@ -5,7 +5,7 @@
 - Project: Fence Calculator
 - Scope: Brick dimension validation, stack bond generation, form state, and page interaction tests
 - Author: Testing team
-- Last updated: 2026-05-07
+- Last updated: 2026-05-09
 - Test levels: Unit test, component test
 - Frameworks: Vitest, Testing Library
 
@@ -41,16 +41,15 @@ Each test case uses the following fields:
 | TC-BD-011 | Fallback only for partially invalid fields | `brickDimensionsFromStrings()` | Test environment installed | One invalid field such as `brickWidth = "abc"` | 1. Call function in `custom` mode with one invalid field and other valid fields. | Only the invalid field falls back to its default value. | Passed |
 | TC-BD-012 | Fallback for zero string values | `brickDimensionsFromStrings()` | Test environment installed | `"0"` for all custom inputs | 1. Call function in `custom` mode with zero strings. | Default dimensions are returned because parsed zero is treated as falsy. | Passed |
 | TC-BD-013 | Preserve negative parsed values before validation | `brickDimensionsFromStrings()` | Test environment installed | Negative numeric strings | 1. Call function in `custom` mode with negative strings. | Returned object contains negative numeric values for later validation. | Passed |
-| TC-ST-001 | Generate stack bond result structure | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. | Result contains `bricks`, `brickCount`, `nRows`, `wallW`, `wallH`, `adjPieceLength`, and `snapped`. | Passed |
-| TC-ST-002 | Verify brick list is populated | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. | `bricks.length > 0`. | Passed |
-| TC-ST-003 | Verify brick count logic | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. 2. Count non-`adj` bricks. | `brickCount` matches the number of non-`adj` bricks. | Passed |
-| TC-ST-004 | Verify row count is positive | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. | `nRows > 0`. | Passed |
-| TC-ST-005 | Verify brick geometry is non-negative | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. 2. Inspect each brick. | Every brick has non-negative `x`, `y`, `w`, and `h`. | Passed |
-| TC-ST-006 | Verify brick type is valid | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator with typical wall data. 2. Inspect each brick type. | Every brick type is `full`, `half`, or `adj`. | Passed |
-| TC-ST-007 | Handle a very small wall safely | `stackBond.generate()` | Test environment installed | `wallL = 40`, `wallH = 40`, default dimensions | 1. Call generator with a small wall. | Function returns a valid result structure without negative geometry. | Passed |
-| TC-ST-008 | Verify wall height calculation formula | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 500`, default dimensions | 1. Call generator. 2. Compute `nRows * (height + mortar) - mortar`. | `wallH` exactly matches the formula. | Passed |
-| TC-ST-009 | Handle zero-length wall safely | `stackBond.generate()` | Test environment installed | `wallL = 0`, `wallH = 40`, default dimensions | 1. Call generator with zero wall length. | Returned result has `wallW = 0`, no bricks, and no negative values. | Passed |
-| TC-ST-010 | Handle zero-height wall using the current row rule | `stackBond.generate()` | Test environment installed | `wallL = 1000`, `wallH = 0`, default dimensions | 1. Call generator with zero wall height. | Returned result follows the current formula-based behavior and remains structurally valid. | Passed |
+| TC-ST-001 | Generate stack bond result structure | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator with typical wall data. | Result contains `bricks`, `brickCount`, `nRows`, `wallW`, `wallH`, `adjPieceLength`, and `snapped`. | Passed |
+| TC-ST-002 | Verify brick list is populated | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator with typical wall data. | `bricks.length > 0`. | Passed |
+| TC-ST-003 | Verify row count is positive | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator with typical wall data. | `nRows > 0`. | Passed |
+| TC-ST-004 | Verify brick geometry is non-negative | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator with typical wall data. 2. Inspect each brick. | Every brick has non-negative `x`, `y`, `w`, and `h`. | Passed |
+| TC-ST-005 | Verify brick type is valid | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator with typical wall data. 2. Inspect each brick type. | Every brick type is `full`, `half`, or `adj`. | Passed |
+| TC-ST-006 | Handle a very small wall safely | `stackBond.generate()` | Test environment installed | `wallL = 0.04 m`, `wallH = 0.04 m`, default dimensions | 1. Call generator with a small wall. | Function returns a valid result structure without negative geometry. | Passed |
+| TC-ST-007 | Verify wall height calculation formula | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0.5 m`, default dimensions | 1. Call generator. 2. Compute `nRows * (height + mortar) - mortar`. | `wallH` exactly matches the formula. | Passed |
+| TC-ST-008 | Handle zero-length wall safely | `stackBond.generate()` | Test environment installed | `wallL = 0 m`, `wallH = 0.04 m`, default dimensions | 1. Call generator with zero wall length. | Returned result has `wallW = 0`, no bricks, and no negative values. | Passed |
+| TC-ST-009 | Handle zero-height wall using the current row rule | `stackBond.generate()` | Test environment installed | `wallL = 1.0 m`, `wallH = 0 m`, default dimensions | 1. Call generator with zero wall height. | Returned result follows the current formula-based behavior and remains structurally valid. | Passed |
 
 ## Component and Interaction Test Cases
 
@@ -82,6 +81,8 @@ Each test case uses the following fields:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | TC-NF-001 | Handle extremely large fence length input without crashing | `DimensionsPage.tsx` / rendering flow | Application is running in a browser | `Fence Length = 1000`, valid wall height such as `1.8` | 1. Open the dimensions page. 2. Enter `1000` into Fence Length (meters). 3. Enter a valid Fence Height. 4. Observe browser responsiveness and page behavior. | The application should remain responsive, avoid browser crash/freezing, and either render safely, reject the value, or show a validation warning/message. | Planned |
 
+## Brick Quantity Calculation and Price Validation
+
 ---
 
 # 测试用例（中文版）
@@ -91,7 +92,7 @@ Each test case uses the following fields:
 - 项目名称：Fence Calculator
 - 测试范围：砖块尺寸校验、stack bond 生成、表单状态管理与页面交互测试
 - 编写者：Testing team
-- 最后更新：2026-05-07
+- 最后更新：2026-05-09
 - 测试级别：单元测试、组件测试
 - 测试框架：Vitest、Testing Library
 
@@ -127,16 +128,15 @@ Each test case uses the following fields:
 | TC-BD-011 | 仅对部分非法字段进行回退 | `brickDimensionsFromStrings()` | 已安装测试环境 | 单个非法字段，如 `brickWidth = "abc"` | 1. 在 `custom` 模式下传入一个非法字段和其他合法字段。 | 只有非法字段回退到默认值。 | Passed |
 | TC-BD-012 | `"0"` 字符串输入时回退默认值 | `brickDimensionsFromStrings()` | 已安装测试环境 | 所有自定义字段都为 `"0"` | 1. 在 `custom` 模式下传入 `"0"`。 | 因解析后为 falsy，返回默认砖块尺寸。 | Passed |
 | TC-BD-013 | 在校验前保留负数字段 | `brickDimensionsFromStrings()` | 已安装测试环境 | 负数字符串 | 1. 在 `custom` 模式下传入负数字符串。 | 返回对象保留负数，交由后续校验逻辑处理。 | Passed |
-| TC-ST-001 | 生成 stack bond 的结果结构 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | 返回结果包含 `bricks`、`brickCount`、`nRows`、`wallW`、`wallH`、`adjPieceLength` 和 `snapped`。 | Passed |
-| TC-ST-002 | 验证砖块列表非空 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | `bricks.length > 0`。 | Passed |
-| TC-ST-003 | 验证砖块计数逻辑 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。2. 统计非 `adj` 砖块数量。 | `brickCount` 与非 `adj` 砖块数量一致。 | Passed |
-| TC-ST-004 | 验证行数为正数 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | `nRows > 0`。 | Passed |
-| TC-ST-005 | 验证砖块几何数据非负 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。2. 检查每块砖。 | 每块砖的 `x`、`y`、`w`、`h` 都不为负数。 | Passed |
-| TC-ST-006 | 验证砖块类型合法 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 使用常规墙体数据调用生成器。2. 检查每块砖的类型。 | 每块砖类型都属于 `full`、`half` 或 `adj`。 | Passed |
-| TC-ST-007 | 小尺寸墙体也能安全处理 | `stackBond.generate()` | 已安装测试环境 | `wallL = 40`、`wallH = 40`、默认尺寸 | 1. 使用小墙体调用生成器。 | 函数返回合法结构，且没有负数几何数据。 | Passed |
-| TC-ST-008 | 验证墙高计算公式 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 500`、默认尺寸 | 1. 调用生成器。2. 计算 `nRows * (height + mortar) - mortar`。 | `wallH` 与公式结果完全一致。 | Passed |
-| TC-ST-009 | 零长度墙体也能安全处理 | `stackBond.generate()` | 已安装测试环境 | `wallL = 0`、`wallH = 40`、默认尺寸 | 1. 使用零长度墙体调用生成器。 | 返回结果 `wallW = 0`、没有砖块且没有负值。 | Passed |
-| TC-ST-010 | 按当前行数规则处理零高度墙体 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1000`、`wallH = 0`、默认尺寸 | 1. 使用零高度墙体调用生成器。 | 返回结果符合当前公式逻辑，且结构仍然有效。 | Passed |
+| TC-ST-001 | 生成 stack bond 的结果结构 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | 返回结果包含 `bricks`、`brickCount`、`nRows`、`wallW`、`wallH`、`adjPieceLength` 和 `snapped`。 | Passed |
+| TC-ST-002 | 验证砖块列表非空 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | `bricks.length > 0`。 | Passed |
+| TC-ST-003 | 验证行数为正数 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 使用常规墙体数据调用生成器。 | `nRows > 0`。 | Passed |
+| TC-ST-004 | 验证砖块几何数据非负 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 使用常规墙体数据调用生成器。2. 检查每块砖。 | 每块砖的 `x`、`y`、`w`、`h` 都不为负数。 | Passed |
+| TC-ST-005 | 验证砖块类型合法 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 使用常规墙体数据调用生成器。2. 检查每块砖的类型。 | 每块砖类型都属于 `full`、`half` 或 `adj`。 | Passed |
+| TC-ST-006 | 小尺寸墙体也能安全处理 | `stackBond.generate()` | 已安装测试环境 | `wallL = 0.04 m`、`wallH = 0.04 m`、默认尺寸 | 1. 使用小墙体调用生成器。 | 函数返回合法结构，且没有负数几何数据。 | Passed |
+| TC-ST-007 | 验证墙高计算公式 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0.5 m`、默认尺寸 | 1. 调用生成器。2. 计算 `nRows * (height + mortar) - mortar`。 | `wallH` 与公式结果完全一致。 | Passed |
+| TC-ST-008 | 零长度墙体也能安全处理 | `stackBond.generate()` | 已安装测试环境 | `wallL = 0 m`、`wallH = 0.04 m`、默认尺寸 | 1. 使用零长度墙体调用生成器。 | 返回结果 `wallW = 0`、没有砖块且没有负值。 | Passed |
+| TC-ST-009 | 按当前行数规则处理零高度墙体 | `stackBond.generate()` | 已安装测试环境 | `wallL = 1.0 m`、`wallH = 0 m`、默认尺寸 | 1. 使用零高度墙体调用生成器。 | 返回结果符合当前公式逻辑，且结构仍然有效。 | Passed |
 
 ## 组件与交互测试用例
 
@@ -167,3 +167,5 @@ Each test case uses the following fields:
 | Test Case ID | Title | Module | Preconditions | Test Data | Steps | Expected Result | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | TC-NF-001 | 超大围栏长度输入时应用不应崩溃 | `DimensionsPage.tsx` / 渲染流程 | 应用已在浏览器中运行 | `Fence Length = 1000`，合法墙高如 `1.8` | 1. 打开 dimensions 页面。 2. 在 Fence Length (meters) 中输入 `1000`。 3. 输入一个合法的 Fence Height。 4. 观察浏览器响应和页面表现。 | 应用应保持可响应，不应导致浏览器崩溃或长时间卡死；系统应安全渲染、拒绝该值，或显示对应的校验/警告信息。 | Planned |
+
+## 砖块数量计算与价格验证

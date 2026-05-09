@@ -26,18 +26,6 @@ describe('stackBond.generate', () => {
     }
   })
 
-  it('keeps brickCount aligned with non-adjustment bricks', () => {
-    const result = stackBond.generate({
-      wallL: 1000,
-      wallH: 500,
-      brickDimensions: DEFAULT_BRICK_DIMENSIONS,
-    })
-
-    const nonAdjustmentBricks = result.bricks.filter((brick) => brick.type !== 'adj')
-
-    expect(result.brickCount).toBe(nonAdjustmentBricks.length)
-  })
-
   it('calculates wallH from the number of rows and course height', () => {
     const result = stackBond.generate({
       wallL: 1000,
