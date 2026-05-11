@@ -58,6 +58,10 @@
     "headerDesc": "所有丁砖以长边排列。外观均匀且坚固。",
     "english": "英式砌法",
     "englishDesc": "顺砖行与丁砖行交替排列。非常坚固。",
+    "englishGarden": "英式花园墙砌法",
+    "englishGardenDesc": "四皮循环：丁砖行配合 1/4 与 3/4 偏移的顺砖行。",
+    "flemish": "佛兰芒砌法",
+    "flemishDesc": "每皮顺砖与丁砖交替排列，并按文件中的柱体设计使用 queen closer。",
     "flemishGarden": "佛兰芒花园墙砌法",
     "flemishGardenDesc": "丁砖与顺砖交错排列，适合花园墙。",
     "comingSoon": "更多砌法即将推出。"
@@ -127,7 +131,10 @@
   },
   "diagram": {
     "previewTitle": "墙体预览",
-    "awaitingDimensions": "请先输入墙体尺寸以查看预览。"
+    "awaitingDimensions": "请先输入墙体尺寸以查看预览。",
+    "expandPreview": "放大预览",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "cost": {
     "heading": "费用估算",

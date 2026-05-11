@@ -9,8 +9,10 @@ const MAX_CANVAS_H = 980
 const HORIZONTAL_PADDING = 36
 const VERTICAL_PADDING = 56
 const PIER_EXTRA_HEIGHT_MM = 180
-const TIMBER_FROM_WALL_TOP_MM = 36
-const TIMBER_RAIL_GAP_MM = 90
+const INFILL_BOTTOM_GAP_MM = 32
+const INFILL_TOP_GAP_MM = 28
+const INFILL_SLAT_HEIGHT_MM = 42
+const INFILL_SLAT_GAP_MM = 28
 const MAX_PIER_SPACING_MM = 3000
 const MORTAR_FILL = '#c9b89a'
 const ADJ_FILL = '#d49050'
@@ -18,7 +20,10 @@ const PIER_STROKE = '#4e3426'
 const PIER_SIDE_SHADOW = 'rgba(47,29,20,0.26)'
 const EXPOSED_PIER_EDGE = '#2f1d14'
 const EXPOSED_PIER_HIGHLIGHT = 'rgba(255,236,190,0.34)'
-const TIMBER_STROKE = '#d9b43b'
+const TIMBER_FILL = '#b85f32'
+const TIMBER_FILL_DARK = '#8f3f20'
+const TIMBER_FILL_LIGHT = '#d4864f'
+const INFILL_FRAME = '#3a2a22'
 const PVC_STROKE = '#f2f2f2'
 const PVC_FILL = '#fbfbf7'
 const PVC_STROKE_SOFT = '#d6d6ce'
@@ -144,20 +149,31 @@ function buildPierSpecs(
   bondPattern: string,
 ): Record<string, PierSpec> {
   const { length: brickL, width: brickW, mortar } = dimensions
+  const queenCloser = Math.max(1, (brickL - brickW) / 2 - mortar)
   const twoBrickPierOddCourse = [brickL, brickL]
   const twoBrickPierEvenCourse =
     bondPattern === 'stack' ? twoBrickPierOddCourse : [brickW, brickL, brickW]
+  const flemishPierOddCourse = [brickW, queenCloser, brickW, queenCloser]
+  const flemishPierEvenCourse = [queenCloser, brickW, queenCloser, brickW]
+  const pier15OddCourse =
+    bondPattern === 'flemish'
+      ? flemishPierOddCourse
+      : [brickL, brickW]
+  const pier15EvenCourse =
+    bondPattern === 'flemish'
+      ? flemishPierEvenCourse
+      : [brickW, brickL]
 
   return {
     '1_5x1': {
       frontWidth: brickL + mortar + brickW,
-      oddCourse: [brickL, brickW],
-      evenCourse: [brickW, brickL],
+      oddCourse: pier15OddCourse,
+      evenCourse: pier15EvenCourse,
     },
     '1_5x1_5': {
       frontWidth: brickL + mortar + brickW,
-      oddCourse: [brickL, brickW],
-      evenCourse: [brickW, brickL],
+      oddCourse: pier15OddCourse,
+      evenCourse: pier15EvenCourse,
     },
     '2x1': {
       frontWidth: brickL + mortar + brickL,
@@ -187,6 +203,11 @@ function adjustBrightness(hex: string, amount: number): string {
   const clamp = (v: number) => Math.max(0, Math.min(255, v + d))
   const toHex = (v: number) => clamp(v).toString(16).padStart(2, '0')
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function timberSlatFill(index: number): string {
+  const options = [TIMBER_FILL, TIMBER_FILL_DARK, TIMBER_FILL_LIGHT, '#a94f28']
+  return options[index % options.length]
 }
 
 function brickFill(b: BrickData, idx: number): string {
@@ -312,7 +333,8 @@ export default function FenceDiagram({
     requestedPierSize !== '2x1' &&
     requestedPierSize !== '2x2'
       ? '2x1'
-      : (bondPatternSafe === 'stack' || bondPatternSafe === 'stretcher') &&
+      : (bondPatternSafe === 'stack' ||
+          bondPatternSafe === 'stretcher') &&
         pierTypeSafe === 'exposed' &&
         requestedPierSize !== '2x2'
       ? '2x2'
@@ -326,6 +348,7 @@ export default function FenceDiagram({
   )
   const pierSpec = pierSpecs[pierSizeSafe] ?? pierSpecs['1_5x1_5']
   const useHiddenStackPier = pierTypeSafe === 'hidden' && bondPatternSafe === 'stack'
+  const useStackPier = pierTypeSafe !== 'none' && bondPatternSafe === 'stack'
   const useHiddenNoCutStretcher15x1 =
     pierTypeSafe === 'hidden' &&
     cutBricksSafe === 'notAllowed' &&
@@ -402,7 +425,7 @@ export default function FenceDiagram({
       const renderedW = result.wallW
       const hiddenInteriorSpan = Math.max(0, renderedW - pierSpec.frontWidth)
       const piers: PierLayout[] =
-        useHiddenStackPier && cutBricksSafe === 'notAllowed'
+        useStackPier
           ? buildStackAlignedPierLayouts(
             renderedW,
             pierSpec.frontWidth,
@@ -435,6 +458,57 @@ export default function FenceDiagram({
           height: result.wallH,
           bricks: result.bricks,
         }],
+      }
+    }
+
+    if (useStackPier) {
+      const result = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+      const renderedW = result.wallW
+      const piers = buildStackAlignedPierLayouts(
+        renderedW,
+        pierSpec.frontWidth,
+        bayCount,
+        brickModule,
+      )
+      const wallSegments: WallSegment[] = []
+
+      for (let i = 0; i < piers.length - 1; i++) {
+        const current = piers[i]
+        const next = piers[i + 1]
+        const left = current.left + current.width
+        const right = next.left
+        const width = Math.max(0, right - left)
+        if (width <= 0) continue
+
+        const bricks = result.bricks.flatMap((brick) => {
+          const visibleLeft = Math.max(brick.x, left)
+          const visibleRight = Math.min(brick.x + brick.w, right)
+          const visibleWidth = visibleRight - visibleLeft
+          if (visibleWidth <= 0) return []
+
+          const clipped = visibleWidth !== brick.w || visibleLeft !== brick.x
+          return [{
+            ...brick,
+            x: visibleLeft,
+            w: visibleWidth,
+            type: clipped ? 'adj' : brick.type,
+          }]
+        })
+
+        wallSegments.push({
+          left,
+          width,
+          top: 0,
+          height: result.wallH,
+          bricks,
+        })
+      }
+
+      return {
+        renderedW,
+        renderedH: result.wallH,
+        piers,
+        wallSegments,
       }
     }
 
@@ -638,6 +712,7 @@ export default function FenceDiagram({
     pierSpacingM,
     pierSpec.frontWidth,
     pierTypeSafe,
+    useStackPier,
     useHiddenStackPier,
     useHiddenNoCutStretcher15x1,
     wallHmm,
@@ -709,10 +784,14 @@ export default function FenceDiagram({
   const offsetX = HORIZONTAL_PADDING
   const offsetY = Math.max(VERTICAL_PADDING, (canvasH - structureH * scale) / 2)
   const wallTopY = (structureH - renderedH) * scale
-  const timberBottomY = Math.max(0, wallTopY - TIMBER_FROM_WALL_TOP_MM * scale)
-  const timberTopY = Math.max(0, timberBottomY - TIMBER_RAIL_GAP_MM * scale)
-  const pvcPanelTopY = Math.max(18 * scale, 48 * scale)
-  const pvcPanelBottomY = Math.max(pvcPanelTopY + 80 * scale, wallTopY - 12 * scale)
+  const infillBottomY = Math.max(0, wallTopY - INFILL_BOTTOM_GAP_MM * scale)
+  const infillTopY = Math.max(0, INFILL_TOP_GAP_MM * scale)
+  const infillHeight = Math.max(0, infillBottomY - infillTopY)
+  const slatH = Math.max(3, INFILL_SLAT_HEIGHT_MM * scale)
+  const slatGap = Math.max(2, INFILL_SLAT_GAP_MM * scale)
+  const slatStep = slatH + slatGap
+  const slatCount = Math.max(2, Math.floor((infillHeight + slatGap) / slatStep))
+  const frameW = Math.max(1.4, 8 * scale)
 
   const strokePx = Math.max(0.5, 0.4 * scale * 4)
   const sheenH = 3 * scale
@@ -896,22 +975,51 @@ export default function FenceDiagram({
               clippedRails.map((rail, i) => {
                 const x1 = (rail.x1 - startX) * scale
                 const x2 = (rail.x2 - startX) * scale
+                const panelW = Math.max(0, x2 - x1)
                 return (
                   <Group key={`timber-${i}`}>
-                    <Line
-                      points={[x1, timberTopY, x2, timberTopY]}
-                      stroke={TIMBER_STROKE}
-                      strokeWidth={Math.max(3, scale * 2.2)}
-                      lineCap="round"
-                      listening={false}
+                    <Rect
+                      x={x1}
+                      y={infillTopY}
+                      width={frameW}
+                      height={infillHeight}
+                      fill={INFILL_FRAME}
+                      cornerRadius={1}
                     />
-                    <Line
-                      points={[x1, timberBottomY, x2, timberBottomY]}
-                      stroke={TIMBER_STROKE}
-                      strokeWidth={Math.max(3, scale * 2.2)}
-                      lineCap="round"
-                      listening={false}
+                    <Rect
+                      x={x2 - frameW}
+                      y={infillTopY}
+                      width={frameW}
+                      height={infillHeight}
+                      fill={INFILL_FRAME}
+                      cornerRadius={1}
                     />
+                    {Array.from({ length: slatCount }, (_, slatIndex) => {
+                      const y = infillTopY + slatIndex * slatStep
+                      if (y + slatH > infillBottomY) return null
+                      return (
+                        <Group key={`timber-slat-${i}-${slatIndex}`}>
+                          <Rect
+                            x={x1 + frameW * 0.6}
+                            y={y}
+                            width={Math.max(0, panelW - frameW * 1.2)}
+                            height={slatH}
+                            fill={timberSlatFill(slatIndex)}
+                            stroke="#6f2e16"
+                            strokeWidth={Math.max(0.6, scale * 0.5)}
+                            cornerRadius={Math.max(1, scale * 1.4)}
+                          />
+                          <Rect
+                            x={x1 + frameW * 0.6}
+                            y={y}
+                            width={Math.max(0, panelW - frameW * 1.2)}
+                            height={Math.min(slatH * 0.28, 5 * scale)}
+                            fill="rgba(255,220,160,0.22)"
+                            listening={false}
+                          />
+                        </Group>
+                      )
+                    })}
                   </Group>
                 )
               })}
@@ -920,7 +1028,7 @@ export default function FenceDiagram({
                 const x1 = (rail.x1 - startX) * scale
                 const x2 = (rail.x2 - startX) * scale
                 const panelW = Math.max(0, x2 - x1)
-                const panelH = Math.max(40 * scale, pvcPanelBottomY - pvcPanelTopY)
+                const panelH = Math.max(40 * scale, infillBottomY - infillTopY)
                 const picketW = Math.max(6, scale * 14)
                 const gapW = Math.max(2, scale * 6)
                 const stride = picketW + gapW
@@ -930,7 +1038,7 @@ export default function FenceDiagram({
                   <Group key={`pvc-${i}`}>
                     <Rect
                       x={x1}
-                      y={pvcPanelTopY}
+                      y={infillTopY}
                       width={panelW}
                       height={panelH}
                       fill={PVC_FILL}
@@ -946,7 +1054,7 @@ export default function FenceDiagram({
                         <Group key={`pvc-picket-${i}-${picketIndex}`}>
                           <Rect
                             x={px}
-                            y={pvcPanelTopY + tipH}
+                            y={infillTopY + tipH}
                             width={picketW}
                             height={Math.max(10, panelH - tipH)}
                             fill="#fffefb"
@@ -956,11 +1064,11 @@ export default function FenceDiagram({
                           <Line
                             points={[
                               px,
-                              pvcPanelTopY + tipH,
+                              infillTopY + tipH,
                               px + picketW / 2,
-                              pvcPanelTopY,
+                              infillTopY,
                               px + picketW,
-                              pvcPanelTopY + tipH,
+                              infillTopY + tipH,
                             ]}
                             closed
                             fill="#fffefb"

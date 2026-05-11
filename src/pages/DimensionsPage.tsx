@@ -12,6 +12,8 @@ import {
 } from '../bonds/brickDimensions'
 
 const MAX_HEIGHT = 2
+const MAX_LENGTH = 100
+const MAX_LENGTH_DECIMALS = 3
 
 export default function DimensionsPage() {
   const navigate = useNavigate()
@@ -53,6 +55,28 @@ export default function DimensionsPage() {
   const formatDimensionValue = (value: number) => {
     if (!Number.isFinite(value)) return ''
     return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.?0+$/, '')
+  }
+
+  const normalizeLengthInput = (value: string) => {
+    if (value === '') return ''
+    if (!/^\d*\.?\d*$/.test(value)) return state.length
+
+    const [integerPart, decimalPart] = value.split('.')
+    const trimmedDecimal =
+      decimalPart === undefined
+        ? undefined
+        : decimalPart.slice(0, MAX_LENGTH_DECIMALS)
+    const normalized =
+      trimmedDecimal === undefined
+        ? integerPart
+        : `${integerPart}.${trimmedDecimal}`
+    const numericValue = parseFloat(normalized)
+
+    if (Number.isFinite(numericValue) && numericValue > MAX_LENGTH) {
+      return MAX_LENGTH.toString()
+    }
+
+    return normalized
   }
 
   const handleBrickFieldChange = (
@@ -108,10 +132,15 @@ export default function DimensionsPage() {
           <input
             type="number"
             min="0.1"
-            step="0.1"
+            max={MAX_LENGTH}
+            step="0.001"
             value={state.length}
             onChange={(e) =>
-              dispatch({ type: 'SET_FIELD', field: 'length', value: e.target.value })
+              dispatch({
+                type: 'SET_FIELD',
+                field: 'length',
+                value: normalizeLengthInput(e.target.value),
+              })
             }
             placeholder={t('dimensions.lengthPlaceholder')}
             className="w-full px-4 py-3 rounded-xl border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-text"

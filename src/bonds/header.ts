@@ -10,89 +10,68 @@ interface RowElem {
 interface RowResult {
   elems: RowElem[]
   renderedL: number
+  snapped: boolean
+  adjPieceLength: number
 }
 
-function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
-  // Header bond odd row: all headers (110mm wide), starts with adjustment piece
-  // Pattern: adj(75) H H H ... H
+function headerRow(wallL: number, dimensions: BrickDimensions, shifted: boolean): RowResult {
   const elems: RowElem[] = []
   let x = 0
   const { width: headerW, mortar } = dimensions
+  const minCut = 50
+  let snapped = false
+  let adjPieceLength = 0
 
-  // Start with adjustment piece (75mm)
-  const adjWidth = Math.round(headerW * 0.68)
-  elems.push({ x: Math.round(x), w: adjWidth, type: 'adj' })
-  x += adjWidth + mortar
+  if (shifted) {
+    const startCut = headerW / 2
+    elems.push({ x: 0, w: Math.round(startCut), type: 'adj' })
+    adjPieceLength = Math.max(adjPieceLength, startCut)
+    x = startCut + mortar
+  }
 
-  // Fill rest with headers
-  while (x + headerW < wallL) {
+  while (x + headerW <= wallL) {
     elems.push({ x: Math.round(x), w: headerW, type: 'full' })
     x += headerW + mortar
   }
 
-  // Check if we need final adjustment piece
-  const remaining = wallL - x + mortar
-  if (remaining > 0 && remaining >= headerW) {
-    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
-    x += headerW
-  } else if (remaining > 0 && remaining > headerW - 5) {
-    // Small gap - use adjustment piece
-    const adjWidth = remaining - mortar
-    elems.push({ x: Math.round(x), w: Math.round(adjWidth), type: 'adj' })
-    x += adjWidth
+  const nextX = x - mortar
+  const endCut = wallL - nextX
+
+  if (endCut >= minCut) {
+    elems.push({ x: Math.round(nextX), w: Math.round(endCut), type: 'adj' })
+    adjPieceLength = Math.max(adjPieceLength, endCut)
+  } else if (endCut > 0) {
+    snapped = true
   }
 
-  return { elems, renderedL: x }
-}
-
-function evenRow(wallL: number, dimensions: BrickDimensions): RowResult {
-  // Header bond even row: all headers (110mm wide), starts with adjustment piece
-  // Pattern: adj(55) H H H ... H
-  const elems: RowElem[] = []
-  let x = 0
-  const { width: headerW, mortar } = dimensions
-
-  // Start with adjustment piece (55mm)
-  const adjWidth = Math.round(headerW / 2)
-  elems.push({ x: Math.round(x), w: adjWidth, type: 'adj' })
-  x += adjWidth + mortar
-
-  // Fill rest with headers
-  while (x + headerW < wallL) {
-    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
-    x += headerW + mortar
+  const last = elems[elems.length - 1]
+  return {
+    elems,
+    renderedL: last ? last.x + last.w : 0,
+    snapped,
+    adjPieceLength,
   }
-
-  // Check if we need final adjustment piece
-  const remaining = wallL - x + mortar
-  if (remaining > 0 && remaining >= headerW) {
-    elems.push({ x: Math.round(x), w: headerW, type: 'full' })
-    x += headerW
-  } else if (remaining > 0 && remaining > headerW - 5) {
-    // Small gap - use adjustment piece
-    const adjWidth = remaining - mortar
-    elems.push({ x: Math.round(x), w: Math.round(adjWidth), type: 'adj' })
-    x += adjWidth
-  }
-
-  return { elems, renderedL: x }
 }
 
 function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
-  // Header bond has all headers (110mm wide), so row height is just brick height + mortar
   const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
   const wallPixH = nRows * courseH - dimensions.mortar
+  const bottomRow = headerRow(wallL, dimensions, false)
+  const targetWallL = bottomRow.renderedL
 
   const bricks: BrickData[] = []
   let brickCount = 0
-  let wallPixW = 0
+  let wallPixW = targetWallL
+  let adjPieceLength = bottomRow.adjPieceLength
+  let snapped = bottomRow.snapped || targetWallL !== wallL
 
   for (let r = 0; r < nRows; r++) {
-    const isOdd = r % 2 === 0
-    const rowResult = isOdd ? oddRow(wallL, dimensions) : evenRow(wallL, dimensions)
+    const rowResult = r === 0 ? bottomRow : headerRow(targetWallL, dimensions, r % 2 === 1)
     wallPixW = Math.max(wallPixW, rowResult.renderedL)
+    adjPieceLength = Math.max(adjPieceLength, rowResult.adjPieceLength)
+    snapped = snapped || rowResult.snapped
     const y = wallPixH - ((r + 1) * courseH - dimensions.mortar)
 
     for (const b of rowResult.elems) {
@@ -107,8 +86,8 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
     wallH: wallPixH,
     nRows,
     brickCount,
-    adjPieceLength: 0,
-    snapped: false,
+    adjPieceLength,
+    snapped,
   }
 }
 

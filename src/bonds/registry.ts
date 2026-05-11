@@ -3,6 +3,8 @@ import { stretcherBond } from './stretcher'
 import { stackBond } from './stack'
 import { headerBond } from './header'
 import { englishBond } from './english'
+import { englishGardenBond } from './englishGarden'
+import { flemishBond } from './flemish'
 import { flemishGardenBond } from './flemishGarden'
 
 const patterns: Map<string, BondPattern> = new Map()
@@ -23,4 +25,6 @@ registerBond(stretcherBond)
 registerBond(stackBond)
 registerBond(headerBond)
 registerBond(englishBond)
+registerBond(englishGardenBond)
+registerBond(flemishBond)
 registerBond(flemishGardenBond)
