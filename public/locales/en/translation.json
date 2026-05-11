@@ -58,6 +58,10 @@
     "headerDesc": "All headers laid lengthwise. Strong and uniform appearance.",
     "english": "English Bond",
     "englishDesc": "Alternating courses of stretchers and headers. Very strong.",
+    "englishGarden": "English Garden Wall Bond",
+    "englishGardenDesc": "Four-course garden wall cycle with header rows and quarter-offset stretcher rows.",
+    "flemish": "Flemish Bond",
+    "flemishDesc": "Alternating headers and stretchers in each course, with queen closers for the pier layout.",
     "flemishGarden": "Flemish Garden Bond",
     "flemishGardenDesc": "Shifted headers and stretchers in a garden wall layout.",
     "comingSoon": "More patterns coming soon."
@@ -127,7 +131,10 @@
   },
   "diagram": {
     "previewTitle": "Wall Preview",
-    "awaitingDimensions": "Enter wall dimensions to see a preview."
+    "awaitingDimensions": "Enter wall dimensions to see a preview.",
+    "expandPreview": "Expand preview",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "cost": {
     "heading": "Cost Estimate",

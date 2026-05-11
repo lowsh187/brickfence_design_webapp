@@ -13,8 +13,6 @@ interface RowResult {
 }
 
 function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
-  // English bond odd row: stretcher course with full-length bricks
-  // Similar to stretcher.ts odd row pattern
   const { length: brickL, mortar } = dimensions
   const unit = brickL + mortar
   const n = Math.max(1, Math.floor((wallL + mortar) / unit))
@@ -26,39 +24,56 @@ function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
   }
 
   const ph = delta >= 2 * mortar ? delta / 2 - mortar : 0
-  const expanded = delta >= 2 * mortar
-
   const elems: RowElem[] = []
   let x = 0
+
+  if (ph > 0) {
+    elems.push({ x: 0, w: Math.round(ph), type: 'adj' })
+    x += ph + mortar
+  }
+
   for (let i = 0; i < n; i++) {
     elems.push({ x: Math.round(x), w: brickL, type: 'full' })
     x += brickL
-    if (i < n - 1) {
-      const endJoint = i === 0 || i === n - 2
-      if (endJoint && expanded) {
-        x += mortar
-        if (ph > 0) {
-          elems.push({ x: Math.round(x), w: Math.round(ph), type: 'adj' })
-          x += ph
-        }
-        x += mortar
-      } else {
-        x += mortar
-      }
-    }
+    if (i < n - 1) x += mortar
   }
+
+  if (ph > 0) {
+    x += mortar
+    elems.push({ x: Math.round(x), w: Math.round(ph), type: 'adj' })
+    x += ph
+  }
+
   const last = elems[elems.length - 1]
   return { elems, renderedL: last.x + last.w }
 }
 
 function shiftedHeaderRow(wallL: number, dimensions: BrickDimensions, shifted: boolean): RowResult {
-  // English bond even row: header course with half-length bricks (110mm wide)
   const { width: brickW, mortar } = dimensions
-  const offset = shifted ? Math.round((brickW + mortar) / 2) : 0
+  const unit = brickW + mortar
+  const n = Math.max(1, Math.floor((wallL + mortar) / unit))
+  const natural = n * brickW + (n - 1) * mortar
+  const delta = wallL - natural
+  const balancedCut = delta >= 2 * mortar ? delta / 2 - mortar : 0
+  const offset = shifted && balancedCut <= 0 ? Math.round((brickW + mortar) / 2) : 0
   const elems: RowElem[] = []
   let x = 0
 
-  if (offset > 0) {
+  if (balancedCut > 0) {
+    elems.push({ x: 0, w: Math.round(balancedCut), type: 'adj' })
+    x += balancedCut + mortar
+
+    for (let i = 0; i < n; i++) {
+      elems.push({ x: Math.round(x), w: brickW, type: 'full' })
+      x += brickW
+      if (i < n - 1) x += mortar
+    }
+
+    x += mortar
+    elems.push({ x: Math.round(x), w: Math.round(balancedCut), type: 'adj' })
+    const last = elems[elems.length - 1]
+    return { elems, renderedL: last.x + last.w }
+  } else if (offset > 0) {
     elems.push({ x: 0, w: Math.min(offset, wallL), type: 'adj' })
     x = offset + mortar
   }

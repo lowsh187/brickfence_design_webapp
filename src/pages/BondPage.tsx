@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
@@ -47,6 +47,7 @@ export default function BondPage() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { state, dispatch } = useFormContext()
+  const [localStep, setLocalStep] = useState(0)
 
   const bonds = allBonds()
   const canProceed = !!state.bondPattern && bonds.some((b) => b.id === state.bondPattern)
@@ -69,6 +70,22 @@ export default function BondPage() {
     () => supportedPierSizes(state.bondPattern, state.pierType),
     [state.bondPattern, state.pierType],
   )
+
+  const goPrevious = () => {
+    if (localStep > 0) {
+      setLocalStep((step) => step - 1)
+      return
+    }
+    navigate('/dimensions')
+  }
+
+  const goNext = () => {
+    if (localStep < 2) {
+      setLocalStep((step) => step + 1)
+      return
+    }
+    navigate('/cost')
+  }
   useEffect(() => {
     if (!noCutAvailable && state.cutBricks === 'notAllowed') {
       dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: 'allowed' })
@@ -85,53 +102,90 @@ export default function BondPage() {
     }
   }, [currentSupportedPierSizes, dispatch, state.pierSize, state.pierType])
 
-  const form = (
-    <div className="bg-white rounded-2xl shadow-sm border border-border p-8">
-      <h1 className="text-2xl font-bold text-text mb-2">{t('bond.heading')}</h1>
-      <p className="text-text-muted mb-8">{t('bond.description')}</p>
+  const bondPatternStep = (
+    <div>
+      <h2 className="text-base font-semibold text-text">{t('bond.heading')}</h2>
+      <p className="mt-1 text-sm text-text-muted">{t('bond.description')}</p>
 
-      <div>
-        <h2 className="text-base font-semibold text-text">{t('bond.heading')}</h2>
-        <p className="mt-1 text-sm text-text-muted">{t('bond.description')}</p>
-
-        <div className="mt-5 space-y-3">
-          {bonds.map((bond) => {
-            const selected = state.bondPattern === bond.id
-            return (
-              <button
-                key={bond.id}
-                type="button"
-                onClick={() =>
-                  dispatch({ type: 'SET_FIELD', field: 'bondPattern', value: bond.id })
-                }
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-colors cursor-pointer text-left ${
-                  selected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-gray-300 hover:bg-surface-alt'
+      <div className="mt-5 space-y-3">
+        {bonds.map((bond) => {
+          const selected = state.bondPattern === bond.id
+          return (
+            <button
+              key={bond.id}
+              type="button"
+              onClick={() => {
+                dispatch({ type: 'SET_FIELD', field: 'bondPattern', value: bond.id })
+              }}
+              className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-colors cursor-pointer text-left ${
+                selected
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-gray-300 hover:bg-surface-alt'
+              }`}
+            >
+              <div
+                className="w-16 h-8 rounded overflow-hidden flex-shrink-0 border border-border/50"
+                dangerouslySetInnerHTML={{ __html: bond.iconSvg }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-text">{t(bond.nameKey)}</div>
+                <div className="text-xs text-text-muted mt-0.5">{t(bond.descKey)}</div>
+              </div>
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  selected ? 'border-primary' : 'border-gray-300'
                 }`}
               >
-                <div
-                  className="w-16 h-8 rounded overflow-hidden flex-shrink-0 border border-border/50"
-                  dangerouslySetInnerHTML={{ __html: bond.iconSvg }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-text">{t(bond.nameKey)}</div>
-                  <div className="text-xs text-text-muted mt-0.5">{t(bond.descKey)}</div>
-                </div>
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                    selected ? 'border-primary' : 'border-gray-300'
-                  }`}
-                >
-                  {selected && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                {selected && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+              </div>
+            </button>
+          )
+        })}
       </div>
+    </div>
+  )
 
-      <div className="mt-8 rounded-2xl border border-border bg-surface-alt/60 p-5">
+  const cutBricksStep = (
+    <div className="rounded-2xl border border-border bg-surface-alt/60 p-5">
+      <h2 className="text-base font-semibold text-text">{t('cutBricks.heading')}</h2>
+      <p className="mt-1 text-sm text-text-muted">{t('cutBricks.description')}</p>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {(['allowed', 'notAllowed'] as const).map((option) => {
+          const selected = state.cutBricks === option
+          const disabled = option === 'notAllowed' && !noCutAvailable
+          return (
+            <button
+              key={option}
+              type="button"
+              disabled={disabled}
+              title={disabled ? t('cutBricks.noCutUnavailable') : undefined}
+              onClick={() => {
+                if (disabled) return
+                dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: option })
+              }}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                disabled
+                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : selected
+                  ? 'border-primary bg-primary/5 cursor-pointer'
+                  : 'border-border hover:border-gray-300 hover:bg-white cursor-pointer'
+              }`}
+            >
+              <div className="font-semibold">{t(`cutBricks.options.${option}`)}</div>
+              <div className={`mt-1 text-xs ${disabled ? 'text-gray-400' : 'text-text-muted'}`}>
+                {t(`cutBricks.optionDesc.${option}`)}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-3 text-xs text-text-muted italic">{t('cutBricks.note')}</p>
+    </div>
+  )
+
+  const pierLayoutStep = (
+    <>
+      <div className="rounded-2xl border border-border bg-surface-alt/60 p-5">
         <h2 className="text-base font-semibold text-text">{t('pier.heading')}</h2>
         <p className="mt-1 text-sm text-text-muted">{t('pier.description')}</p>
 
@@ -283,48 +337,39 @@ export default function BondPage() {
           </div>
         </div>
       )}
+    </>
+  )
 
-      {hasSelectedBond && (
-        <div className="mt-8 rounded-2xl border border-border bg-surface-alt/60 p-5">
-          <h2 className="text-base font-semibold text-text">{t('cutBricks.heading')}</h2>
-          <p className="mt-1 text-sm text-text-muted">{t('cutBricks.description')}</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {(['allowed', 'notAllowed'] as const).map((option) => {
-              const selected = state.cutBricks === option
-              const disabled = option === 'notAllowed' && !noCutAvailable
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  disabled={disabled}
-                    title={disabled ? t('cutBricks.noCutUnavailable') : undefined}
-                  onClick={() =>
-                    !disabled &&
-                    dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: option })
-                  }
-                  className={`rounded-xl border p-4 text-left transition-colors ${
-                    disabled
-                      ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : selected
-                      ? 'border-primary bg-primary/5 cursor-pointer'
-                      : 'border-border hover:border-gray-300 hover:bg-white cursor-pointer'
-                  }`}
-                >
-                  <div className="font-semibold">{t(`cutBricks.options.${option}`)}</div>
-                  <div className={`mt-1 text-xs ${disabled ? 'text-gray-400' : 'text-text-muted'}`}>
-                    {t(`cutBricks.optionDesc.${option}`)}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-          <p className="mt-3 text-xs text-text-muted italic">{t('cutBricks.note')}</p>
-        </div>
-      )}
+  const form = (
+    <div className="bg-white rounded-2xl shadow-sm border border-border p-8">
+      <h1 className="text-2xl font-bold text-text mb-2">{t('bond.heading')}</h1>
+      <p className="text-text-muted mb-8">{t('bond.description')}</p>
+
+      <div className="mb-6 flex items-center gap-2">
+        {[
+          t('bond.heading'),
+          t('cutBricks.heading'),
+          t('pier.heading'),
+        ].map((label, index) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setLocalStep(index)}
+            className={`h-2 flex-1 rounded-full transition-colors ${
+              index <= localStep ? 'bg-primary' : 'bg-gray-200'
+            }`}
+            aria-label={label}
+          />
+        ))}
+      </div>
+
+      {localStep === 0 && bondPatternStep}
+      {localStep === 1 && hasSelectedBond && cutBricksStep}
+      {localStep === 2 && pierLayoutStep}
 
       <div className="flex justify-between mt-10">
         <button
-          onClick={() => navigate('/dimensions')}
+          onClick={goPrevious}
           className="inline-flex items-center gap-2 text-text-muted hover:text-text font-medium py-3 px-6 rounded-xl transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,8 +378,11 @@ export default function BondPage() {
           {t('common.back')}
         </button>
         <button
-          onClick={() => navigate('/cost')}
-          disabled={!canProceed || spacingTooWide || !brickDimensionsValid}
+          onClick={goNext}
+          disabled={
+            (localStep === 0 && !canProceed) ||
+            (localStep === 2 && (spacingTooWide || !brickDimensionsValid))
+          }
           className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm cursor-pointer"
         >
           {t('common.next')}
