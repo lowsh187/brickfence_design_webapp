@@ -1,176 +1,168 @@
 # Fence Cost Calculator
 
-> [Click here for 中文版](#中文)
+A client-side web application for estimating brick fence costs. The project is built with React, TypeScript, and Vite.
+
+**Live demo:** [capstone-g-id113-t3-cs-24.vercel.app](https://capstone-g-id113-t3-cs-24.vercel.app/)
+
+For contribution workflow and bond-pattern development guidance, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## English
 
-A client-side web application for estimating brick fence costs. Built with React + TypeScript + Vite.
-
-**Live demo:** https://capstone-g-id113-t3-cs-24.vercel.app/
-
-> Contributing a new bond pattern or feature? See
-> [CONTRIBUTING.md](CONTRIBUTING.md) for the branching workflow and the
-> step-by-step guide to adding a bond pattern.
-
 ### Prerequisites
 
-- **Node.js v22** (LTS)
-- **npm** (comes with Node.js)
+- Node.js v22
+- npm
 
-If you don't have Node.js installed, or have a different version:
+If you use `nvm`:
 
-1. Install [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager):
-   ```bash
-   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-   ```
-2. Restart your terminal, then run:
-   ```bash
-   nvm install 22
-   nvm use 22
-   ```
-3. Verify:
-   ```bash
-   node -v
-   # should print v22.x.x
-   ```
+```bash
+nvm install 22
+nvm use 22
+node -v
+```
 
 ### Getting Started
 
-1. **Clone the repository**
-   ```bash
-   git clone git@github.com:CosimoZi/COMP5703-Project.git
-   cd COMP5703-Project/fence-calculator
-   ```
+```bash
+git clone git@github.com:CosimoZi/COMP5703-Project.git
+cd COMP5703-Project/fence-calculator
+npm install
+npm run dev
+```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+Open the local URL shown in the terminal, usually `http://localhost:5173/`.
 
-3. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-   Open the URL shown in the terminal (usually http://localhost:5173/COMP5703-Project/).
-
-### Other Commands
+### Scripts
 
 | Command | Description |
-|---------|-------------|
-| `npm run build` | Build for production (output in `dist/`) |
+| --- | --- |
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Build the production bundle into `dist/` |
 | `npm run preview` | Preview the production build locally |
-| `npm run deploy` | Build and deploy to GitHub Pages |
 | `npm run lint` | Run ESLint |
+| `npm run test` | Start Vitest in watch mode |
+| `npm run test:run` | Run the full automated test suite once |
+| `npm run deploy` | Build and deploy to GitHub Pages |
+
+### Running Tests
+
+Install dependencies first:
+
+```bash
+npm install
+```
+
+Run all tests once:
+
+```bash
+npm run test:run
+```
+
+Run tests in watch mode during development:
+
+```bash
+npm run test
+```
+
+### Current Test Coverage
+
+The current automated test suite covers:
+
+- `brickDimensions.ts`
+- `stack.ts`
+- `FormContext.tsx`
+- `DimensionsPage.tsx`
+- `BondPage.tsx`
+
+Detailed test cases are documented in [TEST_CASES.md](./TEST_CASES.md).
 
 ### Tech Stack
 
-- React 19 + TypeScript
-- Vite (build tool)
+- React 19
+- TypeScript
+- Vite
 - Tailwind CSS v4
-- react-konva (brick wall diagram)
-- react-i18next (i18n: English / Chinese)
-- react-router-dom (client-side routing)
-- localStorage + cookies (client-side persistence)
+- react-router-dom
+- react-konva
+- react-i18next
+- Vitest
+- Testing Library
 
-### Known Issues / Troubleshooting
+### Troubleshooting
 
-#### Firefox White Screen Issue
+If the app shows a blank screen locally:
 
-When running the project locally in Firefox, the page may display a white screen.
-
-**Possible solutions:**
-- Ensure the development server is running correctly (`npm run dev`)
-- Check for errors in the browser Developer Tools (Console)
-- Clear browser cache and reload the page
-- Try using Chrome or another browser if the issue persists
-
-This issue has been observed during local development and is documented here for future reference.
-
----
-
-<a id="中文"></a>
+- Make sure the dev server is running with `npm run dev`
+- Check browser developer tools for console errors
+- Clear browser cache and reload
+- Try another browser if the issue is browser-specific
 
 ## 中文
 
-一个用于估算砖墙围栏成本的纯前端网页应用。基于 React + TypeScript + Vite 构建。
-
-**在线演示：** https://capstone-g-id113-t3-cs-24.vercel.app/
-
-> 想要新增一个砌筑样式或其它功能？请看
-> [CONTRIBUTING.md](CONTRIBUTING.md)，里面有分支工作流和添加 bond
-> pattern 的详细步骤。
-
 ### 环境要求
 
-- **Node.js v22**（LTS 版本）
-- **npm**（随 Node.js 一起安装）
+- Node.js v22
+- npm
 
-如果你还没有安装 Node.js，或者版本不对：
+如果你使用 `nvm`，可以执行：
 
-1. 安装 [nvm](https://github.com/nvm-sh/nvm)（Node 版本管理器）：
-   ```bash
-   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-   ```
-2. 重启终端，然后运行：
-   ```bash
-   nvm install 22
-   nvm use 22
-   ```
-3. 验证版本：
-   ```bash
-   node -v
-   # 应该输出 v22.x.x
-   ```
+```bash
+nvm install 22
+nvm use 22
+node -v
+```
 
 ### 快速开始
 
-1. **克隆仓库**
-   ```bash
-   git clone git@github.com:CosimoZi/COMP5703-Project.git
-   cd COMP5703-Project/fence-calculator
-   ```
+```bash
+git clone git@github.com:CosimoZi/COMP5703-Project.git
+cd COMP5703-Project/fence-calculator
+npm install
+npm run dev
+```
 
-2. **安装依赖**
-   ```bash
-   npm install
-   ```
+然后在浏览器打开终端中显示的本地地址，一般是 `http://localhost:5173/`。
 
-3. **启动开发服务器**
-   ```bash
-   npm run dev
-   ```
-   在浏览器中打开终端显示的地址（通常是 http://localhost:5173/COMP5703-Project/）。
-
-### 其他命令
+### 常用命令
 
 | 命令 | 说明 |
-|------|------|
-| `npm run build` | 构建生产版本（输出到 `dist/` 目录） |
+| --- | --- |
+| `npm run dev` | 启动开发服务器 |
+| `npm run build` | 构建生产版本到 `dist/` |
 | `npm run preview` | 本地预览生产版本 |
+| `npm run lint` | 运行 ESLint |
+| `npm run test` | 以监听模式运行 Vitest |
+| `npm run test:run` | 一次性运行全部自动化测试 |
 | `npm run deploy` | 构建并部署到 GitHub Pages |
-| `npm run lint` | 运行 ESLint 代码检查 |
 
-### 技术栈
+### 如何运行测试
 
-- React 19 + TypeScript
-- Vite（构建工具）
-- Tailwind CSS v4
-- react-konva（砖墙图形渲染）
-- react-i18next（国际化：英文 / 中文）
-- react-router-dom（前端路由）
-- localStorage + cookies（客户端数据持久化）
+先安装依赖：
 
-### 常见问题 / 排错
+```bash
+npm install
+```
 
-#### Firefox 打开白屏问题
+一次性执行全部测试：
 
-在 Firefox 浏览器中本地运行项目时，可能会出现白屏现象。
+```bash
+npm run test:run
+```
 
-**可能的解决方法：**
-- 确认开发服务器正常运行（`npm run dev`）
-- 打开浏览器开发者工具（Console）查看是否有报错
-- 清除浏览器缓存后重新加载页面
-- 若问题仍然存在，建议使用 Chrome 或其他浏览器
+开发过程中持续监听测试：
 
-该问题在本地开发过程中出现过，记录在此以供后续参考。
+```bash
+npm run test
+```
 
+### 当前测试覆盖范围
+
+当前自动化测试已经覆盖：
+
+- `brickDimensions.ts`
+- `stack.ts`
+- `FormContext.tsx`
+- `DimensionsPage.tsx`
+- `BondPage.tsx`
+
+更详细的 test case 记录见 [TEST_CASES.md](./TEST_CASES.md)。
