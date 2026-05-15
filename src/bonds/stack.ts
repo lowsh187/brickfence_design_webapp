@@ -1,5 +1,6 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
+import { snapWallLengthForCutRule } from './cutRules'
 
 interface RowElem {
   x: number
@@ -70,7 +71,10 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   const wallPixH = nRows * courseH - dimensions.mortar
 
   // Calculate row layout once - all rows are identical in stack bond
-  const rowResult = calculateStackRow(wallL, dimensions)
+  const targetWallL = snapWallLengthForCutRule(wallL, dimensions, (candidateWallL) => [
+    calculateStackRow(candidateWallL, dimensions),
+  ])
+  const rowResult = calculateStackRow(targetWallL, dimensions)
 
   const bricks: BrickData[] = []
   let brickCount = 0
@@ -90,7 +94,7 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
     nRows,
     brickCount,
     adjPieceLength: rowResult.adjPieceLength,
-    snapped: rowResult.snapped,
+    snapped: rowResult.snapped || targetWallL !== wallL,
   }
 }
 

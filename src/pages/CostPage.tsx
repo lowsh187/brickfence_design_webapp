@@ -313,10 +313,12 @@ function computeMetrics(params: {
   const cutBricksSafe = params.cutBricks || 'allowed'
   const pierSpecs = buildPierSpecs(dimensions)
   const pierSpec = pierSpecs[pierSizeSafe] ?? pierSpecs['1_5x1_5']
-  const pierHeightMm = Math.max(
-    wallHmm,
-    params.pierHeightM > 0 ? params.pierHeightM * 1000 : wallHmm + PIER_EXTRA_HEIGHT_MM,
-  )
+  const requestedPierHeightMm =
+    params.pierHeightM > 0 ? params.pierHeightM * 1000 : wallHmm + PIER_EXTRA_HEIGHT_MM
+  const effectivePierType = pierTypeSafe !== 'none' && requestedPierHeightMm > wallHmm
+    ? pierTypeSafe
+    : 'none'
+  const pierHeightMm = effectivePierType === 'none' ? wallHmm : requestedPierHeightMm
   const desiredSpacingMm = Math.max(
     dimensions.length + dimensions.mortar,
     Math.min(MAX_PIER_SPACING_MM, params.pierSpacingM * 1000 || 2800),
@@ -327,7 +329,7 @@ function computeMetrics(params: {
       (dimensions.length + dimensions.mortar),
   )
   const useHiddenNoCutStretcher15x1 =
-    pierTypeSafe === 'hidden' &&
+    effectivePierType === 'hidden' &&
     cutBricksSafe === 'notAllowed' &&
     params.bondPattern === 'stretcher' &&
     pierSizeSafe === '1_5x1'
@@ -336,7 +338,7 @@ function computeMetrics(params: {
   let wallSegments: WallSegment[] = []
   let piers: PierLayout[] = []
 
-  if (pierTypeSafe === 'none') {
+  if (effectivePierType === 'none') {
     const result =
       cutBricksSafe === 'notAllowed'
         ? tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions) ??
@@ -530,7 +532,7 @@ function computeMetrics(params: {
   const wallRows = Math.max(1, Math.ceil((renderedH + dimensions.mortar) / courseH))
 
   const pierBrickCount = piers.reduce((sum, _, index) => {
-    if (pierTypeSafe === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
+    if (effectivePierType === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
       return sum + Math.max(0, nPierRows - wallRows) * 1.5
     }
     const bricksPerRow =
@@ -541,7 +543,7 @@ function computeMetrics(params: {
   }, 0)
 
   const pierBrickVolume = piers.reduce((sum, _, index) => {
-    if (pierTypeSafe === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
+    if (effectivePierType === 'hidden' && useHiddenNoCutStretcher15x1 && index > 0 && index < piers.length - 1) {
       return sum + Math.max(0, nPierRows - wallRows) *
         (dimensions.length + dimensions.width) *
         dimensions.height *
@@ -605,6 +607,36 @@ function formatMeters(value: number): string {
   return value.toFixed(2).replace(/\.?0+$/, '')
 }
 
+function createSavedQuote(params: {
+  name: string
+  state: ReturnType<typeof useFormContext>['state']
+  effectivePierSize: string
+  brickCount: number
+  mortarVolumeM3: number
+}): SavedQuote {
+  return {
+    id: Date.now().toString(),
+    name: params.name,
+    date: new Date().toLocaleDateString(),
+    length: params.state.length,
+    height: params.state.height,
+    bondPattern: params.state.bondPattern,
+    pierType: params.state.pierType,
+    pierSize: params.effectivePierSize,
+    pierHeight: params.state.pierHeight,
+    pierSpacing: params.state.pierSpacing,
+    cutBricks: params.state.cutBricks,
+    timberFence: params.state.timberFence,
+    brickSizeMode: params.state.brickSizeMode,
+    brickLength: params.state.brickLength,
+    brickWidth: params.state.brickWidth,
+    brickHeight: params.state.brickHeight,
+    mortarJoint: params.state.mortarJoint,
+    brickCount: params.brickCount,
+    mortarVolumeM3: params.mortarVolumeM3,
+  }
+}
+
 export default function CostPage() {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -653,27 +685,13 @@ export default function CostPage() {
   const handleSave = () => {
     if (!quoteName.trim()) return
     const name = quoteName.trim()
-    const quote: SavedQuote = {
-      id: Date.now().toString(),
+    const quote = createSavedQuote({
       name,
-      date: new Date().toLocaleDateString(),
-      length: state.length,
-      height: state.height,
-      bondPattern: state.bondPattern,
-      pierType: state.pierType,
-      pierSize: effectivePierSize,
-      pierHeight: state.pierHeight,
-      pierSpacing: state.pierSpacing,
-      cutBricks: state.cutBricks,
-      timberFence: state.timberFence,
-      brickSizeMode: state.brickSizeMode,
-      brickLength: state.brickLength,
-      brickWidth: state.brickWidth,
-      brickHeight: state.brickHeight,
-      mortarJoint: state.mortarJoint,
+      state,
+      effectivePierSize,
       brickCount: metrics.brickCount,
       mortarVolumeM3: metrics.mortarVolumeM3,
-    }
+    })
     upsertQuote(quote)
     dispatch({ type: 'SET_FIELD', field: 'activeQuoteName', value: name })
     setShowSaveDialog(false)

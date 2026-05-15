@@ -9,6 +9,7 @@ const MAX_CANVAS_H = 980
 const HORIZONTAL_PADDING = 36
 const VERTICAL_PADDING = 56
 const PIER_EXTRA_HEIGHT_MM = 180
+const MIN_INFILL_CLEARANCE_MM = 120
 const INFILL_BOTTOM_GAP_MM = 32
 const INFILL_TOP_GAP_MM = 28
 const INFILL_SLAT_HEIGHT_MM = 42
@@ -347,18 +348,22 @@ export default function FenceDiagram({
     [bondPatternSafe, dimensions],
   )
   const pierSpec = pierSpecs[pierSizeSafe] ?? pierSpecs['1_5x1_5']
-  const useHiddenStackPier = pierTypeSafe === 'hidden' && bondPatternSafe === 'stack'
-  const useStackPier = pierTypeSafe !== 'none' && bondPatternSafe === 'stack'
+  const requestedPierHeightMm =
+    (pierHeightM || 0) > 0 ? (pierHeightM || 0) * 1000 : wallHmm + PIER_EXTRA_HEIGHT_MM
+  const effectivePierType = pierTypeSafe !== 'none' && requestedPierHeightMm > wallHmm
+    ? pierTypeSafe
+    : 'none'
+  const useHiddenStackPier = effectivePierType === 'hidden' && bondPatternSafe === 'stack'
+  const useStackPier = effectivePierType !== 'none' && bondPatternSafe === 'stack'
   const useHiddenNoCutStretcher15x1 =
-    pierTypeSafe === 'hidden' &&
+    effectivePierType === 'hidden' &&
     cutBricksSafe === 'notAllowed' &&
     bondPatternSafe === 'stretcher' &&
     pierSizeSafe === '1_5x1'
 
-  const pierTargetHeightMm = Math.max(
-    wallHmm,
-    (pierHeightM || 0) > 0 ? (pierHeightM || 0) * 1000 : wallHmm + PIER_EXTRA_HEIGHT_MM,
-  )
+  const pierTargetHeightMm = effectivePierType === 'none'
+    ? wallHmm
+    : requestedPierHeightMm
 
   const pierFace = useMemo(
     () => generatePierFace(pierSpec, pierTargetHeightMm, dimensions),
@@ -379,7 +384,7 @@ export default function FenceDiagram({
       Math.round(desiredSpacingMm / brickModule) * brickModule,
     )
 
-    if (pierTypeSafe === 'none') {
+    if (effectivePierType === 'none') {
       if (cutBricksSafe === 'notAllowed') {
         const snappedBond = tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions)
         if (snappedBond) {
@@ -416,7 +421,7 @@ export default function FenceDiagram({
     const interiorSpan = Math.max(0, wallL - pierSpec.frontWidth)
     const bayCount = Math.max(1, Math.ceil(interiorSpan / snappedRequestedSpacingMm))
 
-    if (pierTypeSafe === 'hidden') {
+    if (effectivePierType === 'hidden') {
       const result =
         cutBricksSafe === 'notAllowed'
           ? tryGenerateNoCutBond(bond, wallL, wallHmm, dimensions) ??
@@ -711,7 +716,7 @@ export default function FenceDiagram({
     dimensions,
     pierSpacingM,
     pierSpec.frontWidth,
-    pierTypeSafe,
+    effectivePierType,
     useStackPier,
     useHiddenStackPier,
     useHiddenNoCutStretcher15x1,
@@ -723,8 +728,9 @@ export default function FenceDiagram({
   const renderedH = layout.renderedH
   const piers = layout.piers
   const wallSegments = layout.wallSegments
-  const structureH = Math.max(renderedH, pierTypeSafe === 'none' ? 0 : pierFace.height)
+  const structureH = Math.max(renderedH, effectivePierType === 'none' ? 0 : pierFace.height)
   const topRevealMm = Math.max(0, pierFace.height - renderedH)
+  const canRenderInfill = topRevealMm >= MIN_INFILL_CLEARANCE_MM
 
   const visiblePiers = useMemo<IndexedPierLayout[]>(() => {
     return piers
@@ -733,7 +739,12 @@ export default function FenceDiagram({
   }, [piers, renderedW])
 
   const timberRails = useMemo(() => {
-    if (pierTypeSafe === 'none' || timberFenceSafe === 'none' || piers.length < 2) return []
+    if (
+      effectivePierType === 'none' ||
+      timberFenceSafe === 'none' ||
+      !canRenderInfill ||
+      piers.length < 2
+    ) return []
 
     return piers
       .slice(0, -1)
@@ -742,7 +753,7 @@ export default function FenceDiagram({
         return { x1: pier.left + pier.width, x2: nextPier.left }
       })
       .filter((rail) => rail.x2 > rail.x1)
-  }, [pierTypeSafe, piers, timberFenceSafe])
+  }, [canRenderInfill, effectivePierType, piers, timberFenceSafe])
 
   const { scale, canvasH } = useMemo(() => {
     if (containerWidth <= 0 || renderedW <= 0 || structureH <= 0) {
@@ -805,11 +816,11 @@ export default function FenceDiagram({
       <Stage width={containerWidth} height={canvasH}>
         <Layer>
           <Group x={offsetX} y={offsetY}>
-            {pierTypeSafe !== 'none' &&
+            {effectivePierType !== 'none' &&
               clippedPiers.map((pier, i) => {
                 const localX = (pier.left - startX) * scale
-                const isExposedPier = pierTypeSafe === 'exposed'
-                const isHiddenPier = pierTypeSafe === 'hidden'
+                const isExposedPier = effectivePierType === 'exposed'
+                const isHiddenPier = effectivePierType === 'hidden'
                 const isInteriorHiddenPier =
                   (useHiddenNoCutStretcher15x1 || useHiddenStackPier) &&
                   pier.index > 0 &&

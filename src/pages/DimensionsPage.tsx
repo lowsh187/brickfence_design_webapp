@@ -12,7 +12,7 @@ import {
 } from '../bonds/brickDimensions'
 
 const MAX_HEIGHT = 2
-const MAX_LENGTH = 100
+const MAX_LENGTH = 30
 const MAX_LENGTH_DECIMALS = 3
 
 export default function DimensionsPage() {
@@ -145,6 +145,9 @@ export default function DimensionsPage() {
             placeholder={t('dimensions.lengthPlaceholder')}
             className="w-full px-4 py-3 rounded-xl border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-text"
           />
+          <p className="mt-1.5 text-xs text-text-muted">
+            {t('dimensions.lengthHint', { max: MAX_LENGTH })}
+          </p>
         </div>
 
         <div>
