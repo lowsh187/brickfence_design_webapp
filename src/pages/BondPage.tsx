@@ -14,6 +14,7 @@ const ALL_PIER_SIZES = ['1_5x1', '1_5x1_5', '2x1', '2x2'] as const
 const STACK_HIDDEN_PIER_SUPPORTED_SIZES = ['2x1', '2x2']
 const STRETCHER_HIDDEN_PIER_SUPPORTED_SIZES = ['1_5x1', '1_5x1_5', '2x1', '2x2']
 const TWO_BY_TWO_ONLY_PIER_SIZES = ['2x2']
+const MAX_PIER_HEIGHT_M = 2.5
 
 function supportedPierSizes(bondPattern: string, pierType: string): string[] {
   if (pierType === 'hidden' && bondPattern === 'stack') return STACK_HIDDEN_PIER_SUPPORTED_SIZES
@@ -86,6 +87,16 @@ export default function BondPage() {
     }
     navigate('/cost')
   }
+
+  const normalizePierHeightInput = (value: string) => {
+    if (value === '') return ''
+    const numericValue = parseFloat(value)
+    if (Number.isFinite(numericValue) && numericValue > MAX_PIER_HEIGHT_M) {
+      return MAX_PIER_HEIGHT_M.toString()
+    }
+    return value
+  }
+
   useEffect(() => {
     if (!noCutAvailable && state.cutBricks === 'notAllowed') {
       dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: 'allowed' })
@@ -101,6 +112,18 @@ export default function BondPage() {
       })
     }
   }, [currentSupportedPierSizes, dispatch, state.pierSize, state.pierType])
+
+  useEffect(() => {
+    if (state.pierType === 'none') return
+    const currentPierHeight = parseFloat(state.pierHeight)
+    if (Number.isFinite(currentPierHeight) && currentPierHeight > MAX_PIER_HEIGHT_M) {
+      dispatch({
+        type: 'SET_FIELD',
+        field: 'pierHeight',
+        value: MAX_PIER_HEIGHT_M.toString(),
+      })
+    }
+  }, [dispatch, state.pierHeight, state.pierType])
 
   const bondPatternStep = (
     <div>
@@ -265,15 +288,21 @@ export default function BondPage() {
             <input
               type="number"
               min={Math.max(0.5, height).toFixed(1)}
-              max="3"
+              max={MAX_PIER_HEIGHT_M}
               step="0.1"
               value={state.pierHeight}
               onChange={(e) =>
-                dispatch({ type: 'SET_FIELD', field: 'pierHeight', value: e.target.value })
+                dispatch({
+                  type: 'SET_FIELD',
+                  field: 'pierHeight',
+                  value: normalizePierHeightInput(e.target.value),
+                })
               }
               className="w-full px-4 py-3 rounded-xl border bg-white focus:outline-none focus:ring-2 transition-colors text-text border-border focus:ring-primary/30 focus:border-primary"
             />
-            <p className="mt-1.5 text-xs text-text-muted">{t('pier.heightHint')}</p>
+            <p className="mt-1.5 text-xs text-text-muted">
+              {t('pier.heightHint', { max: MAX_PIER_HEIGHT_M })}
+            </p>
           </div>
         )}
 

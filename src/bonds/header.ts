@@ -1,5 +1,10 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
-import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
+import {
+  DEFAULT_BRICK_DIMENSIONS,
+  MIN_CUT_BRICK_DIMENSION,
+  type BrickDimensions,
+} from './brickDimensions'
+import { hasInvalidCutBrick } from './cutRules'
 
 interface RowElem {
   x: number
@@ -18,7 +23,6 @@ function headerRow(wallL: number, dimensions: BrickDimensions, shifted: boolean)
   const elems: RowElem[] = []
   let x = 0
   const { width: headerW, mortar } = dimensions
-  const minCut = 50
   let snapped = false
   let adjPieceLength = 0
 
@@ -37,7 +41,7 @@ function headerRow(wallL: number, dimensions: BrickDimensions, shifted: boolean)
   const nextX = x - mortar
   const endCut = wallL - nextX
 
-  if (endCut >= minCut) {
+  if (endCut >= MIN_CUT_BRICK_DIMENSION) {
     elems.push({ x: Math.round(nextX), w: Math.round(endCut), type: 'adj' })
     adjPieceLength = Math.max(adjPieceLength, endCut)
   } else if (endCut > 0) {
@@ -53,22 +57,43 @@ function headerRow(wallL: number, dimensions: BrickDimensions, shifted: boolean)
   }
 }
 
+function snapHeaderWallLength(wallL: number, dimensions: BrickDimensions): number {
+  const unit = dimensions.width + dimensions.mortar
+  const searchLimit = Math.max(unit * 12, MIN_CUT_BRICK_DIMENSION * 4)
+
+  for (let offset = 0; offset <= searchLimit; offset++) {
+    const candidate = wallL + offset
+    const straightRow = headerRow(candidate, dimensions, false)
+    const shiftedRow = headerRow(candidate, dimensions, true)
+
+    if (
+      !straightRow.snapped &&
+      !shiftedRow.snapped &&
+      !hasInvalidCutBrick(straightRow) &&
+      !hasInvalidCutBrick(shiftedRow)
+    ) {
+      return Math.max(straightRow.renderedL, shiftedRow.renderedL)
+    }
+  }
+
+  return wallL
+}
+
 function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
   const wallPixH = nRows * courseH - dimensions.mortar
-  const bottomRow = headerRow(wallL, dimensions, false)
-  const targetWallL = bottomRow.renderedL
+  const targetWallL = snapHeaderWallLength(wallL, dimensions)
 
   const bricks: BrickData[] = []
   let brickCount = 0
   let wallPixW = targetWallL
-  let adjPieceLength = bottomRow.adjPieceLength
-  let snapped = bottomRow.snapped || targetWallL !== wallL
+  let adjPieceLength = 0
+  let snapped = targetWallL !== wallL
 
   for (let r = 0; r < nRows; r++) {
-    const rowResult = r === 0 ? bottomRow : headerRow(targetWallL, dimensions, r % 2 === 1)
+    const rowResult = headerRow(targetWallL, dimensions, r % 2 === 1)
     wallPixW = Math.max(wallPixW, rowResult.renderedL)
     adjPieceLength = Math.max(adjPieceLength, rowResult.adjPieceLength)
     snapped = snapped || rowResult.snapped

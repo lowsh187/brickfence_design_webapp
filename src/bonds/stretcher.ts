@@ -1,5 +1,6 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
+import { snapWallLengthForCutRule } from './cutRules'
 
 interface RowElem {
   x: number
@@ -119,8 +120,12 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
-  const OR = oddRow(wallL, dimensions)
-  const ER = evenRow(wallL, dimensions)
+  const targetWallL = snapWallLengthForCutRule(wallL, dimensions, (candidateWallL) => [
+    oddRow(candidateWallL, dimensions),
+    evenRow(candidateWallL, dimensions),
+  ])
+  const OR = oddRow(targetWallL, dimensions)
+  const ER = evenRow(targetWallL, dimensions)
   const wallPixH = nRows * courseH - dimensions.mortar
 
   const bricks: BrickData[] = []
@@ -138,12 +143,12 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
 
   return {
     bricks,
-    wallW: OR.renderedL,
+    wallW: Math.max(OR.renderedL, ER.renderedL),
     wallH: wallPixH,
     nRows,
     brickCount,
-    adjPieceLength: OR.ph,
-    snapped: OR.snapped || ER.snapped,
+    adjPieceLength: Math.max(OR.ph, ER.ph),
+    snapped: OR.snapped || ER.snapped || targetWallL !== wallL,
   }
 }
 
