@@ -607,6 +607,36 @@ function formatMeters(value: number): string {
   return value.toFixed(2).replace(/\.?0+$/, '')
 }
 
+function createSavedQuote(params: {
+  name: string
+  state: ReturnType<typeof useFormContext>['state']
+  effectivePierSize: string
+  brickCount: number
+  mortarVolumeM3: number
+}): SavedQuote {
+  return {
+    id: Date.now().toString(),
+    name: params.name,
+    date: new Date().toLocaleDateString(),
+    length: params.state.length,
+    height: params.state.height,
+    bondPattern: params.state.bondPattern,
+    pierType: params.state.pierType,
+    pierSize: params.effectivePierSize,
+    pierHeight: params.state.pierHeight,
+    pierSpacing: params.state.pierSpacing,
+    cutBricks: params.state.cutBricks,
+    timberFence: params.state.timberFence,
+    brickSizeMode: params.state.brickSizeMode,
+    brickLength: params.state.brickLength,
+    brickWidth: params.state.brickWidth,
+    brickHeight: params.state.brickHeight,
+    mortarJoint: params.state.mortarJoint,
+    brickCount: params.brickCount,
+    mortarVolumeM3: params.mortarVolumeM3,
+  }
+}
+
 export default function CostPage() {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -655,27 +685,13 @@ export default function CostPage() {
   const handleSave = () => {
     if (!quoteName.trim()) return
     const name = quoteName.trim()
-    const quote: SavedQuote = {
-      id: Date.now().toString(),
+    const quote = createSavedQuote({
       name,
-      date: new Date().toLocaleDateString(),
-      length: state.length,
-      height: state.height,
-      bondPattern: state.bondPattern,
-      pierType: state.pierType,
-      pierSize: effectivePierSize,
-      pierHeight: state.pierHeight,
-      pierSpacing: state.pierSpacing,
-      cutBricks: state.cutBricks,
-      timberFence: state.timberFence,
-      brickSizeMode: state.brickSizeMode,
-      brickLength: state.brickLength,
-      brickWidth: state.brickWidth,
-      brickHeight: state.brickHeight,
-      mortarJoint: state.mortarJoint,
+      state,
+      effectivePierSize,
       brickCount: metrics.brickCount,
       mortarVolumeM3: metrics.mortarVolumeM3,
-    }
+    })
     upsertQuote(quote)
     dispatch({ type: 'SET_FIELD', field: 'activeQuoteName', value: name })
     setShowSaveDialog(false)

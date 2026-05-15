@@ -70,6 +70,11 @@ function renderBondPage(savedState?: Record<string, string>) {
   )
 }
 
+async function goToPierStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /common.next/i }))
+  await user.click(screen.getByRole('button', { name: /common.next/i }))
+}
+
 describe('BondPage', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -79,6 +84,7 @@ describe('BondPage', () => {
     const user = userEvent.setup()
     renderBondPage()
 
+    await goToPierStep(user)
     await user.click(screen.getByRole('button', { name: /pier.types.hidden/i }))
 
     expect(screen.getByText('pier.size')).toBeInTheDocument()
@@ -92,6 +98,7 @@ describe('BondPage', () => {
     renderBondPage()
 
     await user.click(screen.getByRole('button', { name: /bond.stack/i }))
+    await goToPierStep(user)
     await user.click(screen.getByRole('button', { name: /pier.types.hidden/i }))
 
     expect(screen.getByText('pier.sizes.1_5x1').closest('button')).toBeDisabled()
@@ -103,6 +110,7 @@ describe('BondPage', () => {
     const user = userEvent.setup()
     renderBondPage({ pierType: 'hidden' })
 
+    await goToPierStep(user)
     const spacingInput = screen.getAllByRole('spinbutton')[1]
     const nextButton = screen.getByRole('button', { name: /common.next/i })
 
@@ -130,6 +138,8 @@ describe('BondPage', () => {
     const user = userEvent.setup()
     renderBondPage()
 
+    await user.click(screen.getByRole('button', { name: /common.next/i }))
+    await user.click(screen.getByRole('button', { name: /common.next/i }))
     await user.click(screen.getByRole('button', { name: /common.next/i }))
 
     expect(screen.getByText('cost-route')).toBeInTheDocument()

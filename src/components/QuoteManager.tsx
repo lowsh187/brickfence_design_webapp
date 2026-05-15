@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useFormContext } from '../context/FormContext'
@@ -48,18 +48,16 @@ interface QuoteManagerProps {
 }
 
 export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
+  if (!isOpen) return null
+
+  return <QuoteManagerDialog onClose={onClose} />
+}
+
+function QuoteManagerDialog({ onClose }: Pick<QuoteManagerProps, 'onClose'>) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { dispatch } = useFormContext()
-  const [quotes, setQuotes] = useState<SavedQuote[]>([])
-
-  const refreshQuotes = useCallback(() => {
-    setQuotes(getQuotes())
-  }, [])
-
-  useEffect(() => {
-    if (isOpen) refreshQuotes()
-  }, [isOpen, refreshQuotes])
+  const [quotes, setQuotes] = useState<SavedQuote[]>(getQuotes)
 
   const handleLoad = (quote: SavedQuote) => {
     dispatch({ type: 'SET_FIELD', field: 'length', value: quote.length })
@@ -132,10 +130,8 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
   const handleDelete = (id: string) => {
     if (!window.confirm(t('quotes.confirmDelete'))) return
     deleteQuoteFromStorage(id)
-    refreshQuotes()
+    setQuotes(getQuotes())
   }
-
-  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 pt-16 sm:pt-24">
