@@ -15,7 +15,7 @@ i18n
       escapeValue: false,
     },
     backend: {
-      loadPath: import.meta.env.BASE_URL + 'locales/{{lng}}/translation.json',
+      loadPath: '/locales/{{lng}}/translation.json',
     },
     detection: {
       order: ['localStorage', 'navigator'],

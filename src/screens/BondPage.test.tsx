@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { FormProvider } from '../context/FormContext'
+import { NavigationProvider } from '../navigation'
 import BondPage from './BondPage'
 
 vi.mock('react-i18next', () => ({
@@ -58,16 +59,19 @@ function renderBondPage(savedState?: Record<string, string>) {
     }),
   )
 
-  return render(
-    <MemoryRouter initialEntries={['/bond']}>
+  function TestRouter() {
+    const [path, setPath] = useState('/bond')
+
+    return (
       <FormProvider>
-        <Routes>
-          <Route path="/bond" element={<BondPage />} />
-          <Route path="/cost" element={<div>cost-route</div>} />
-        </Routes>
+        <NavigationProvider navigate={setPath}>
+          {path === '/cost' ? <div>cost-route</div> : <BondPage />}
+        </NavigationProvider>
       </FormProvider>
-    </MemoryRouter>,
-  )
+    )
+  }
+
+  return render(<TestRouter />)
 }
 
 async function goToPierStep(user: ReturnType<typeof userEvent.setup>) {

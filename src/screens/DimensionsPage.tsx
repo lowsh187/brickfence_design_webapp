@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
+import { useAppNavigate } from '../navigation'
 import {
   DEFAULT_BRICK_DIMENSIONS,
   MIN_BRICK_WIDTH,
@@ -16,7 +16,7 @@ const MAX_LENGTH = 30
 const MAX_LENGTH_DECIMALS = 3
 
 export default function DimensionsPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const { t } = useTranslation()
   const { state, dispatch } = useFormContext()
 

@@ -1,9 +1,9 @@
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
+import { useAppNavigate } from '../navigation'
 
 export default function StartPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const { t } = useTranslation()
 
   return (

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
+import { useAppNavigate } from '../navigation'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
 import {
@@ -638,7 +638,7 @@ function createSavedQuote(params: {
 }
 
 export default function CostPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const { t } = useTranslation()
   const { state, dispatch } = useFormContext()
   const [showSaveDialog, setShowSaveDialog] = useState(false)

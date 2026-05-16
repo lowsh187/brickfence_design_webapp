@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
+import { useAppNavigate } from '../navigation'
 import { allBonds } from '../bonds/registry'
 import {
   brickDimensionsFromStrings,
@@ -45,7 +45,7 @@ function pierSizeUnavailableMessageKey(bondPattern: string, pierType: string): s
 }
 
 export default function BondPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const { t } = useTranslation()
   const { state, dispatch } = useFormContext()
   const [localStep, setLocalStep] = useState(0)

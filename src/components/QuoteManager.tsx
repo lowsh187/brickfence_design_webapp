@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useFormContext } from '../context/FormContext'
+import { useAppNavigate } from '../navigation'
 
 interface SavedQuote {
   id: string
@@ -55,7 +55,7 @@ export default function QuoteManager({ isOpen, onClose }: QuoteManagerProps) {
 
 function QuoteManagerDialog({ onClose }: Pick<QuoteManagerProps, 'onClose'>) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const { dispatch } = useFormContext()
   const [quotes, setQuotes] = useState<SavedQuote[]>(getQuotes)
 
