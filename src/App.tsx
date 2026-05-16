@@ -1,7 +1,11 @@
+"use client"
+
 import { useEffect, useRef, useState, Suspense } from 'react'
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
+import './i18n'
 import { FormProvider, useFormContext } from './context/FormContext'
+import { NavigationProvider } from './navigation'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import CookieConsentBanner from './components/CookieConsentBanner'
 import QuoteManager from './components/QuoteManager'
@@ -10,10 +14,10 @@ import {
   brickDimensionsFromStrings,
   validateBrickDimensions,
 } from './bonds/brickDimensions'
-import StartPage from './pages/StartPage'
-import DimensionsPage from './pages/DimensionsPage'
-import BondPage from './pages/BondPage'
-import CostPage from './pages/CostPage'
+import StartPage from './screens/StartPage'
+import DimensionsPage from './screens/DimensionsPage'
+import BondPage from './screens/BondPage'
+import CostPage from './screens/CostPage'
 
 function PersistentPreview() {
   const { t } = useTranslation()
@@ -192,9 +196,19 @@ function PersistentPreview() {
 
 function AppContent() {
   const { t } = useTranslation()
-  const location = useLocation()
+  const pathname = usePathname()
   const [quotesOpen, setQuotesOpen] = useState(false)
-  const usesWizardLayout = ['/dimensions', '/bond', '/cost'].includes(location.pathname)
+  const usesWizardLayout = ['/dimensions', '/bond', '/cost'].includes(pathname)
+  const routeContent =
+    pathname === '/dimensions' ? (
+      <DimensionsPage />
+    ) : pathname === '/bond' ? (
+      <BondPage />
+    ) : pathname === '/cost' ? (
+      <CostPage />
+    ) : (
+      <StartPage />
+    )
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -222,18 +236,12 @@ function AppContent() {
         {usesWizardLayout ? (
           <div className="flex flex-col lg:flex-row lg:items-start gap-6 w-full">
             <div className="w-full lg:w-[480px] lg:flex-shrink-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2">
-              <Routes>
-                <Route path="/dimensions" element={<DimensionsPage />} />
-                <Route path="/bond" element={<BondPage />} />
-                <Route path="/cost" element={<CostPage />} />
-              </Routes>
+              {routeContent}
             </div>
             <PersistentPreview />
           </div>
         ) : (
-          <Routes>
-            <Route path="/" element={<StartPage />} />
-          </Routes>
+          routeContent
         )}
       </main>
 
@@ -258,13 +266,15 @@ function LoadingFallback() {
 }
 
 export default function App() {
+  const router = useRouter()
+
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <HashRouter>
+      <NavigationProvider navigate={(path) => router.push(path)}>
         <FormProvider>
           <AppContent />
         </FormProvider>
-      </HashRouter>
+      </NavigationProvider>
     </Suspense>
   )
 }

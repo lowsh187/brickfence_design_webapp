@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { FormProvider } from '../context/FormContext'
+import { NavigationProvider } from '../navigation'
 import DimensionsPage from './DimensionsPage'
 
 vi.mock('react-i18next', () => ({
@@ -64,16 +65,19 @@ function renderDimensionsPage(savedState?: Record<string, string>) {
     )
   }
 
-  return render(
-    <MemoryRouter initialEntries={['/dimensions']}>
+  function TestRouter() {
+    const [path, setPath] = useState('/dimensions')
+
+    return (
       <FormProvider>
-        <Routes>
-          <Route path="/dimensions" element={<DimensionsPage />} />
-          <Route path="/bond" element={<div>bond-route</div>} />
-        </Routes>
+        <NavigationProvider navigate={setPath}>
+          {path === '/bond' ? <div>bond-route</div> : <DimensionsPage />}
+        </NavigationProvider>
       </FormProvider>
-    </MemoryRouter>,
-  )
+    )
+  }
+
+  return render(<TestRouter />)
 }
 
 describe('DimensionsPage', () => {

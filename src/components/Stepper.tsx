@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useAppNavigate } from '../navigation'
 
 interface StepperProps {
   currentStep: number
@@ -14,7 +14,7 @@ const steps = [
 
 export default function Stepper({ currentStep }: StepperProps) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
 
   const handleClick = (index: number) => {
     if (index < currentStep) {

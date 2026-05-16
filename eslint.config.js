@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['.next', 'dist']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -22,7 +22,7 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': [
         'error',
-        { allowExportNames: ['useFormContext'] },
+        { allowExportNames: ['metadata', 'useAppNavigate', 'useFormContext'] },
       ],
     },
   },
