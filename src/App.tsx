@@ -270,7 +270,11 @@ export default function App() {
 
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <NavigationProvider navigate={(path) => router.push(path)}>
+      <NavigationProvider
+        navigate={(path, options) =>
+          options?.replace ? router.replace(path) : router.push(path)
+        }
+      >
         <FormProvider>
           <AppContent />
         </FormProvider>

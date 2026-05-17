@@ -4,6 +4,13 @@ import Stepper from '../components/Stepper'
 import WizardLayout from '../components/WizardLayout'
 import { useFormContext } from '../context/FormContext'
 import { useAppNavigate } from '../navigation'
+import {
+  calculateCostPricing,
+  defaultPricingMap,
+  formatCurrency,
+  type CostPricing,
+  type PricingMap,
+} from '../pricing'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
 import {
@@ -60,6 +67,7 @@ interface SavedQuote {
   mortarJoint?: string
   brickCount: number
   mortarVolumeM3: number
+  totalCost?: number
 }
 
 function buildPierSpecs(dimensions: BrickDimensions): Record<string, PierSpec> {
@@ -613,6 +621,7 @@ function createSavedQuote(params: {
   effectivePierSize: string
   brickCount: number
   mortarVolumeM3: number
+  totalCost?: number
 }): SavedQuote {
   return {
     id: Date.now().toString(),
@@ -634,6 +643,7 @@ function createSavedQuote(params: {
     mortarJoint: params.state.mortarJoint,
     brickCount: params.brickCount,
     mortarVolumeM3: params.mortarVolumeM3,
+    totalCost: params.totalCost,
   }
 }
 
@@ -644,6 +654,8 @@ export default function CostPage() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [quoteName, setQuoteName] = useState('')
   const [savedMessage, setSavedMessage] = useState(false)
+  const [prices, setPrices] = useState<PricingMap>(() => defaultPricingMap())
+  const [pricingSource, setPricingSource] = useState<'cms' | 'default'>('default')
 
   const length = parseFloat(state.length) || 0
   const height = parseFloat(state.height) || 0
@@ -676,6 +688,35 @@ export default function CostPage() {
   const metersLabel = t('cost.meters')
   const renderedLengthLabel = `${formatMeters(metrics.renderedLengthM)} ${metersLabel} (${formatMeters(length)} ${metersLabel})`
   const renderedHeightLabel = `${formatMeters(metrics.renderedHeightM)} ${metersLabel} (${formatMeters(height)} ${metersLabel})`
+  const pricing: CostPricing = calculateCostPricing({
+    brickCount: metrics.brickCount,
+    mortarVolumeM3: metrics.mortarVolumeM3,
+    renderedLengthM: metrics.renderedLengthM,
+    renderedHeightM: metrics.renderedHeightM,
+    timberFence: state.timberFence,
+    prices,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/pricing-data')
+      .then((response) => response.json())
+      .then((data: { prices?: PricingMap; source?: 'cms' | 'default' }) => {
+        if (cancelled) return
+        if (data.prices) setPrices(data.prices)
+        if (data.source) setPricingSource(data.source)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setPrices(defaultPricingMap())
+        setPricingSource('default')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openSaveDialog = () => {
     setQuoteName(state.activeQuoteName ?? '')
@@ -691,6 +732,7 @@ export default function CostPage() {
       effectivePierSize,
       brickCount: metrics.brickCount,
       mortarVolumeM3: metrics.mortarVolumeM3,
+      totalCost: pricing.totalCost,
     })
     upsertQuote(quote)
     dispatch({ type: 'SET_FIELD', field: 'activeQuoteName', value: name })
@@ -759,16 +801,39 @@ export default function CostPage() {
             label={t('cost.mortarVolume')}
             value={`${metrics.mortarVolumeM3.toFixed(3)} ${t('cost.cubicMeters')}`}
           />
+          <Row
+            label={t('cost.brickCost')}
+            value={formatCurrency(pricing.brickCost, pricing.currency)}
+          />
+          <Row
+            label={t('cost.mortarCost')}
+            value={formatCurrency(pricing.mortarCost, pricing.currency)}
+          />
+          <Row
+            label={t('cost.labourCost')}
+            value={formatCurrency(pricing.labourCost, pricing.currency)}
+          />
+          {state.timberFence !== 'none' && (
+            <Row
+              label={t('cost.infillCost')}
+              value={formatCurrency(pricing.infillCost, pricing.currency)}
+            />
+          )}
           <div className="flex justify-between px-6 py-4 bg-primary/5">
-            <span className="font-bold text-text">{t('cost.summary')}</span>
+            <span className="font-bold text-text">{t('cost.totalCost')}</span>
             <span className="font-bold text-primary text-lg">
-              {metrics.brickCount} / {metrics.mortarVolumeM3.toFixed(3)} {t('cost.cubicMeters')}
+              {formatCurrency(pricing.totalCost, pricing.currency)}
             </span>
           </div>
         </div>
       </div>
 
       <p className="text-xs text-text-muted mt-4 leading-relaxed">{t('cost.disclaimer')}</p>
+      {pricingSource === 'default' && (
+        <p className="text-xs text-amber-600 mt-2 leading-relaxed">
+          {t('cost.defaultPricingNotice')}
+        </p>
+      )}
 
       {savedMessage && (
         <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-medium text-center">

@@ -1,4 +1,10 @@
 {
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@payload-config": ["./payload.config.ts"]
+    }
+  },
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" },
