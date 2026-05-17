@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react'
 
-type Navigate = (path: string) => void
+type Navigate = (path: string, options?: { replace?: boolean }) => void
 
 const NavigationContext = createContext<Navigate | null>(null)
 

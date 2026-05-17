@@ -23,6 +23,7 @@ interface SavedQuote {
   mortarJoint?: string
   brickCount?: number
   mortarVolumeM3?: number
+  totalCost?: number
 }
 
 function getQuotes(): SavedQuote[] {
@@ -164,7 +165,12 @@ function QuoteManagerDialog({ onClose }: Pick<QuoteManagerProps, 'onClose'>) {
                       <p className="text-xs text-text-muted">{t('quotes.date')}: {quote.date}</p>
                     </div>
                     <span className="text-primary font-bold">
-                      {Math.ceil(quote.brickCount ?? 0)} / {(quote.mortarVolumeM3 ?? 0).toFixed(3)} m³
+                      {quote.totalCost
+                        ? new Intl.NumberFormat('en-AU', {
+                            style: 'currency',
+                            currency: 'AUD',
+                          }).format(quote.totalCost)
+                        : `${Math.ceil(quote.brickCount ?? 0)} / ${(quote.mortarVolumeM3 ?? 0).toFixed(3)} m³`}
                     </span>
                   </div>
                   <div className="text-sm text-text-muted mb-3">

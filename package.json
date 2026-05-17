@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "lint": "eslint .",
     "test": "vitest",
@@ -12,12 +12,15 @@
     "preview": "next start"
   },
   "dependencies": {
+    "@payloadcms/db-postgres": "^3.84.1",
+    "@payloadcms/next": "^3.84.1",
     "@tailwindcss/postcss": "^4.3.0",
     "i18next": "^25.8.20",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-http-backend": "^3.0.2",
     "konva": "^10.2.3",
     "next": "^16.2.6",
+    "payload": "^3.84.1",
     "react": "^19.2.4",
     "react-cookie-consent": "^10.0.1",
     "react-dom": "^19.2.4",

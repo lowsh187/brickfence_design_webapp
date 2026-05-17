@@ -22,7 +22,14 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': [
         'error',
-        { allowExportNames: ['metadata', 'useAppNavigate', 'useFormContext'] },
+        {
+          allowExportNames: [
+            'generateMetadata',
+            'metadata',
+            'useAppNavigate',
+            'useFormContext',
+          ],
+        },
       ],
     },
   },
