@@ -3,6 +3,7 @@ import { Stage, Layer, Rect, Group, Line } from 'react-konva'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from '../bonds/brickDimensions'
+import { generateEnglishBay } from '../bonds/english'
 
 const MIN_CANVAS_H = 520
 const MAX_CANVAS_H = 980
@@ -294,6 +295,72 @@ function tryGenerateNoCutBond(
   return null
 }
 
+function buildEvenPierLayouts(
+  renderedW: number,
+  pierWidth: number,
+  bayCount: number,
+): PierLayout[] {
+  const interiorSpan = Math.max(0, renderedW - pierWidth)
+
+  return Array.from({ length: bayCount + 1 }, (_, idx) => {
+    const center =
+      bayCount === 0
+        ? renderedW / 2
+        : pierWidth / 2 + (idx * interiorSpan) / bayCount
+
+    return {
+      center,
+      left: Math.max(0, Math.min(renderedW - pierWidth, center - pierWidth / 2)),
+      width: pierWidth,
+    }
+  })
+}
+
+function buildEnglishPierBayLayout(params: {
+  wallL: number
+  wallH: number
+  bayCount: number
+  pierWidth: number
+  dimensions: BrickDimensions
+}): StructureLayout {
+  const piers = buildEvenPierLayouts(params.wallL, params.pierWidth, params.bayCount)
+  const wallSegments: WallSegment[] = []
+  let renderedH = params.wallH
+
+  for (let i = 0; i < piers.length - 1; i++) {
+    const current = piers[i]
+    const next = piers[i + 1]
+    const left = current.left + current.width
+    const width = Math.max(0, next.left - left)
+    if (width <= 0) continue
+
+    const bay = generateEnglishBay({
+      wallL: width,
+      wallH: params.wallH,
+      brickDimensions: params.dimensions,
+    })
+
+    renderedH = Math.max(renderedH, bay.wallH)
+    wallSegments.push({
+      left,
+      width,
+      top: 0,
+      height: bay.wallH,
+      bricks: bay.bricks.map((brick) => ({
+        ...brick,
+        x: brick.x + left,
+      })),
+    })
+  }
+
+  return {
+    renderedW: params.wallL,
+    renderedH,
+    piers,
+    wallSegments,
+  }
+}
+
 export default function FenceDiagram({
   lengthM,
   heightM,
@@ -420,6 +487,16 @@ export default function FenceDiagram({
 
     const interiorSpan = Math.max(0, wallL - pierSpec.frontWidth)
     const bayCount = Math.max(1, Math.ceil(interiorSpan / snappedRequestedSpacingMm))
+
+    if (bondPatternSafe === 'english' && effectivePierType === 'exposed') {
+      return buildEnglishPierBayLayout({
+        wallL,
+        wallH: wallHmm,
+        bayCount,
+        pierWidth: pierSpec.frontWidth,
+        dimensions,
+      })
+    }
 
     if (effectivePierType === 'hidden') {
       const result =

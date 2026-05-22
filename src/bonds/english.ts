@@ -1,6 +1,5 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
-import { snapWallLengthForCutRule } from './cutRules'
 
 interface RowElem {
   x: number
@@ -13,99 +12,56 @@ interface RowResult {
   renderedL: number
 }
 
-function oddRow(wallL: number, dimensions: BrickDimensions): RowResult {
+function stretcherRow(wallL: number, dimensions: BrickDimensions): RowResult {
   const { length: brickL, mortar } = dimensions
-  const unit = brickL + mortar
-  const n = Math.max(1, Math.floor((wallL + mortar) / unit))
-  const natural = n * brickL + (n - 1) * mortar
-  let delta = wallL - natural
-
-  if (delta > 0 && delta < 2 * mortar) {
-    delta = delta <= mortar ? 0 : 2 * mortar
-  }
-
-  const ph = delta >= 2 * mortar ? delta / 2 - mortar : 0
   const elems: RowElem[] = []
   let x = 0
 
-  if (ph > 0) {
-    elems.push({ x: 0, w: Math.round(ph), type: 'adj' })
-    x += ph + mortar
-  }
+  while (x < wallL) {
+    const remaining = wallL - x
+    const w = Math.min(brickL, remaining)
+    elems.push({ x: Math.round(x), w: Math.round(w), type: w === brickL ? 'full' : 'adj' })
+    x += w
 
-  for (let i = 0; i < n; i++) {
-    elems.push({ x: Math.round(x), w: brickL, type: 'full' })
-    x += brickL
-    if (i < n - 1) x += mortar
-  }
-
-  if (ph > 0) {
+    if (wallL - x <= mortar) break
     x += mortar
-    elems.push({ x: Math.round(x), w: Math.round(ph), type: 'adj' })
-    x += ph
   }
 
   const last = elems[elems.length - 1]
   return { elems, renderedL: last.x + last.w }
 }
 
-function shiftedHeaderRow(wallL: number, dimensions: BrickDimensions, shifted: boolean): RowResult {
-  const { width: brickW, mortar } = dimensions
-  const unit = brickW + mortar
-  const n = Math.max(1, Math.floor((wallL + mortar) / unit))
-  const natural = n * brickW + (n - 1) * mortar
-  const delta = wallL - natural
-  const balancedCut = delta >= 2 * mortar ? delta / 2 - mortar : 0
-  const offset = shifted && balancedCut <= 0 ? Math.round((brickW + mortar) / 2) : 0
+function headerRow(wallL: number, dimensions: BrickDimensions): RowResult {
+  const { length: brickL, width: brickW, mortar } = dimensions
+  const queenCloser = Math.max(1, (brickL - brickW) / 2 - mortar)
   const elems: RowElem[] = []
   let x = 0
 
-  if (balancedCut > 0) {
-    elems.push({ x: 0, w: Math.round(balancedCut), type: 'adj' })
-    x += balancedCut + mortar
-
-    for (let i = 0; i < n; i++) {
-      elems.push({ x: Math.round(x), w: brickW, type: 'full' })
-      x += brickW
-      if (i < n - 1) x += mortar
-    }
-
-    x += mortar
-    elems.push({ x: Math.round(x), w: Math.round(balancedCut), type: 'adj' })
-    const last = elems[elems.length - 1]
-    return { elems, renderedL: last.x + last.w }
-  } else if (offset > 0) {
-    elems.push({ x: 0, w: Math.min(offset, wallL), type: 'adj' })
-    x = offset + mortar
+  if (queenCloser < wallL) {
+    elems.push({ x: 0, w: Math.round(queenCloser), type: 'adj' })
+    x = queenCloser + mortar
   }
 
   while (x < wallL) {
     const remaining = wallL - x
-    if (remaining >= brickW) {
-      elems.push({ x: Math.round(x), w: brickW, type: 'full' })
-    } else {
-      elems.push({ x: Math.round(x), w: Math.round(remaining), type: 'adj' })
-      break
-    }
-    x += brickW
+    const w = Math.min(brickW, remaining)
+    elems.push({ x: Math.round(x), w: Math.round(w), type: w === brickW ? 'full' : 'adj' })
+    x += w
+
     if (wallL - x <= mortar) break
     x += mortar
   }
 
   const last = elems[elems.length - 1]
-  return { elems, renderedL: last ? last.x + last.w : 0 }
+  return { elems, renderedL: last.x + last.w }
 }
 
-function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
+export function generateEnglishBay({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
   const wallPixH = nRows * courseH - dimensions.mortar
-  const targetWallL = snapWallLengthForCutRule(wallL, dimensions, (candidateWallL) => [
-    oddRow(candidateWallL, dimensions),
-    shiftedHeaderRow(candidateWallL, dimensions, false),
-    shiftedHeaderRow(candidateWallL, dimensions, true),
-  ])
+  const targetWallL = wallL
 
   const bricks: BrickData[] = []
   let brickCount = 0
@@ -114,9 +70,7 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
 
   for (let r = 0; r < nRows; r++) {
     const isOdd = r % 2 === 0
-    const rowResult = isOdd
-      ? oddRow(targetWallL, dimensions)
-      : shiftedHeaderRow(targetWallL, dimensions, Math.floor(r / 2) % 2 === 1)
+    const rowResult = isOdd ? stretcherRow(targetWallL, dimensions) : headerRow(targetWallL, dimensions)
     wallPixW = Math.max(wallPixW, rowResult.renderedL)
     adjPieceLength = Math.max(
       adjPieceLength,
@@ -140,8 +94,12 @@ function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
     nRows,
     brickCount,
     adjPieceLength,
-    snapped: targetWallL !== wallL,
+    snapped: false,
   }
+}
+
+function generate(params: BondParams): BondResult {
+  return generateEnglishBay(params)
 }
 
 const ENGLISH_ICON = `<svg viewBox="0 0 80 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
