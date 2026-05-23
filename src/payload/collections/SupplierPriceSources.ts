@@ -33,6 +33,7 @@ export const SupplierPriceSources: CollectionConfig = {
       'pricingKey',
       'productUrl',
       'unit',
+      'previousPriceDisplay',
       'lastPriceDisplay',
       'lastStatus',
       'isEnabled',
@@ -51,8 +52,12 @@ export const SupplierPriceSources: CollectionConfig = {
       ({ data, originalDoc }) => {
         const productUrl = data?.productUrl ?? originalDoc?.productUrl
         const pricingKey = data?.pricingKey ?? originalDoc?.pricingKey
-        const unit = data?.unit ?? originalDoc?.unit ?? defaultUnitForPricingKey(pricingKey)
+        const unit = productUrl
+          ? defaultUnitForPricingKey(pricingKey)
+          : data?.unit ?? originalDoc?.unit ?? defaultUnitForPricingKey(pricingKey)
         const lastPrice = data?.lastPrice ?? originalDoc?.lastPrice
+        const previousPrice =
+          data?.previousPrice ?? originalDoc?.previousPrice
 
         if (productUrl) {
           data.supplierName = deriveSupplierNameFromUrl(productUrl)
@@ -79,6 +84,26 @@ export const SupplierPriceSources: CollectionConfig = {
           data.lastStatus = 'success'
           data.lastError = null
         }
+
+        if (
+          originalDoc &&
+          typeof originalDoc.lastPrice === 'number' &&
+          typeof data?.lastPrice === 'number' &&
+          data.lastPrice !== originalDoc.lastPrice &&
+          !data.previousPrice
+        ) {
+          data.previousPrice = originalDoc.lastPrice
+          data.previousPriceDisplay =
+            formatPriceWithUnit(originalDoc.lastPrice, originalDoc.unit ?? unit) ||
+            'No data'
+          data.previousFetchedAt = originalDoc.lastFetchedAt ?? null
+        }
+
+        data.previousPriceDisplay =
+          formatPriceWithUnit(
+            data?.previousPrice ?? previousPrice,
+            data?.unit ?? unit,
+          ) || 'No data'
 
         data.lastPriceDisplay =
           formatPriceWithUnit(
@@ -166,6 +191,34 @@ export const SupplierPriceSources: CollectionConfig = {
           'Required for manual supplier sources. URL sources use the update button to fetch this value.',
       },
       min: 0,
+    },
+    {
+      name: 'previousPrice',
+      type: 'number',
+      admin: {
+        description: 'Supplier price before the latest successful update.',
+        readOnly: true,
+      },
+      min: 0,
+    },
+    {
+      name: 'previousPriceDisplay',
+      type: 'text',
+      defaultValue: 'No data',
+      admin: {
+        description: 'Previous supplier price with unit.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'previousFetchedAt',
+      type: 'date',
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+        readOnly: true,
+      },
     },
     {
       name: 'lastPriceDisplay',

@@ -94,8 +94,13 @@ export function SupplierPriceFetchButton({
 
       const successCount =
         data.results?.filter((result) => result.status === 'success').length ?? 0
-      const failedCount =
-        data.results?.filter((result) => result.status === 'failed').length ?? 0
+      const failedResults =
+        data.results?.filter((result) => result.status === 'failed') ?? []
+      const failedCount = failedResults.length
+
+      if (successCount === 0 && failedResults[0]?.error) {
+        throw new Error(failedResults[0].error)
+      }
 
       setMessage(
         `Finished: ${successCount} success${

@@ -14,6 +14,8 @@ export type SupplierPriceSourceDoc = {
   unit?: string | null
   isEnabled?: boolean | null
   includesGST?: boolean | null
+  lastPrice?: number | null
+  lastFetchedAt?: string | null
 }
 
 type ScrapedPrice = {
@@ -75,6 +77,7 @@ const SUPPLIER_HOST_MATCHES = [
   { host: 'mapei.com', name: 'Mapei Australia' },
   { host: 'mortafil.com.au', name: 'Mortafil' },
   { host: 'sydneyhardware.com.au', name: 'Sydney Hardware' },
+  { host: 'cementaustralia.com.au', name: 'Cement Australia' },
 ] as const
 
 function titleCaseHostSegment(value: string): string {

@@ -70,7 +70,6 @@ export interface Config {
     admins: Admin;
     'pricing-items': PricingItem;
     'supplier-price-sources': SupplierPriceSource;
-    'supplier-price-snapshots': SupplierPriceSnapshot;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -81,7 +80,6 @@ export interface Config {
     admins: AdminsSelect<false> | AdminsSelect<true>;
     'pricing-items': PricingItemsSelect<false> | PricingItemsSelect<true>;
     'supplier-price-sources': SupplierPriceSourcesSelect<false> | SupplierPriceSourcesSelect<true>;
-    'supplier-price-snapshots': SupplierPriceSnapshotsSelect<false> | SupplierPriceSnapshotsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -153,18 +151,20 @@ export interface Admin {
  */
 export interface PricingItem {
   id: number;
-  name: string;
   category: 'brick' | 'mortar' | 'labour' | 'infill';
   key: 'standard_brick' | 'mortar' | 'labour' | 'timber_fence' | 'pvc_fence';
-  unit: 'each' | 'm3' | 'm2' | 'm' | 'per_1000' | '20kg_bag';
   /**
    * Choose whether the calculator uses the company manual price or the supplier average price.
    */
   priceSource: 'manual' | 'average' | 'supplier';
   /**
-   * Used when Price Source is Specific supplier price. Choose a source that has been fetched successfully.
+   * Used when Price Source is Specific supplier price. Choose a source that has been fetched successfully. The unit will use the selected supplier source unit.
    */
   selectedSupplierPriceSource?: (number | null) | SupplierPriceSource;
+  /**
+   * Set manually for manual and average prices. Specific supplier prices use the selected supplier source unit automatically.
+   */
+  unit?: ('each' | 'm3' | 'm2' | 'm' | 'per_1000' | '20kg_bag') | null;
   /**
    * Company controlled price. Used when Price Source is Manual price.
    */
@@ -239,6 +239,15 @@ export interface SupplierPriceSource {
    */
   lastPrice?: number | null;
   /**
+   * Supplier price before the latest successful update.
+   */
+  previousPrice?: number | null;
+  /**
+   * Previous supplier price with unit.
+   */
+  previousPriceDisplay?: string | null;
+  previousFetchedAt?: string | null;
+  /**
    * Last fetched supplier price with unit.
    */
   lastPriceDisplay?: string | null;
@@ -246,26 +255,6 @@ export interface SupplierPriceSource {
   lastStatus?: ('pending' | 'success' | 'failed') | null;
   lastError?: string | null;
   notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "supplier-price-snapshots".
- */
-export interface SupplierPriceSnapshot {
-  id: number;
-  source?: (number | null) | SupplierPriceSource;
-  supplierName: string;
-  pricingKey: 'standard_brick' | 'mortar' | 'labour' | 'timber_fence' | 'pvc_fence';
-  unitPrice?: number | null;
-  currency: string;
-  unit: 'each' | 'm3' | 'm2' | 'm' | 'per_1000' | '20kg_bag';
-  fetchedAt: string;
-  rawTitle?: string | null;
-  rawUrl: string;
-  status: 'success' | 'failed';
-  errorMessage?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -304,10 +293,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'supplier-price-sources';
         value: number | SupplierPriceSource;
-      } | null)
-    | ({
-        relationTo: 'supplier-price-snapshots';
-        value: number | SupplierPriceSnapshot;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -379,12 +364,11 @@ export interface AdminsSelect<T extends boolean = true> {
  * via the `definition` "pricing-items_select".
  */
 export interface PricingItemsSelect<T extends boolean = true> {
-  name?: T;
   category?: T;
   key?: T;
-  unit?: T;
   priceSource?: T;
   selectedSupplierPriceSource?: T;
+  unit?: T;
   manualUnitPrice?: T;
   manualUnitPriceDisplay?: T;
   autoAverageUnitPrice?: T;
@@ -415,30 +399,14 @@ export interface SupplierPriceSourcesSelect<T extends boolean = true> {
   includesGST?: T;
   isEnabled?: T;
   lastPrice?: T;
+  previousPrice?: T;
+  previousPriceDisplay?: T;
+  previousFetchedAt?: T;
   lastPriceDisplay?: T;
   lastFetchedAt?: T;
   lastStatus?: T;
   lastError?: T;
   notes?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "supplier-price-snapshots_select".
- */
-export interface SupplierPriceSnapshotsSelect<T extends boolean = true> {
-  source?: T;
-  supplierName?: T;
-  pricingKey?: T;
-  unitPrice?: T;
-  currency?: T;
-  unit?: T;
-  fetchedAt?: T;
-  rawTitle?: T;
-  rawUrl?: T;
-  status?: T;
-  errorMessage?: T;
   updatedAt?: T;
   createdAt?: T;
 }

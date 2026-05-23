@@ -5,7 +5,6 @@ import { resolve } from 'node:path'
 
 import { Admins } from './src/payload/collections/Admins'
 import { PricingItems } from './src/payload/collections/PricingItems'
-import { SupplierPriceSnapshots } from './src/payload/collections/SupplierPriceSnapshots'
 import { SupplierPriceSources } from './src/payload/collections/SupplierPriceSources'
 
 function loadLocalEnv() {
@@ -47,7 +46,6 @@ export default buildConfig({
     Admins,
     PricingItems,
     SupplierPriceSources,
-    SupplierPriceSnapshots,
   ],
   db: postgresAdapter({
     pool: {
