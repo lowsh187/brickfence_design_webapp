@@ -802,6 +802,10 @@ export default function CostPage() {
             value={`${metrics.mortarVolumeM3.toFixed(3)} ${t('cost.cubicMeters')}`}
           />
           <Row
+            label={t('cost.mortarDryMix')}
+            value={`${pricing.mortarDryMixKg.toFixed(1)} kg`}
+          />
+          <Row
             label={t('cost.brickCost')}
             value={formatCurrency(pricing.brickCost, pricing.currency)}
           />
@@ -811,7 +815,7 @@ export default function CostPage() {
           />
           <Row
             label={t('cost.labourCost')}
-            value={formatCurrency(pricing.labourCost, pricing.currency)}
+            value=""
           />
           {state.timberFence !== 'none' && (
             <Row

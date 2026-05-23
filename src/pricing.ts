@@ -7,8 +7,8 @@ export const DEFAULT_PRICING_ITEMS = {
   },
   mortar: {
     name: 'Mortar',
-    unit: 'm3',
-    unitPrice: 220,
+    unit: '20kg_bag',
+    unitPrice: 12,
     currency: 'AUD',
   },
   labour: {
@@ -52,11 +52,17 @@ export type PricingMap = Record<PricingKey, PricingItem>
 export type CostPricing = {
   brickCost: number
   mortarCost: number
+  mortarDryMixKg: number
+  mortarBagCount: number
   labourCost: number
   infillCost: number
   totalCost: number
   currency: string
 }
+
+export const MORTAR_DRY_MIX_KG_PER_M3 = 2000
+export const MORTAR_BAG_WEIGHT_KG = 20
+export const MORTAR_WASTAGE_FACTOR = 1.1
 
 export function normalizeUnitPrice(item: PricingItem): number {
   if (item.key === 'standard_brick' && item.unit === 'per_1000') {
@@ -71,7 +77,7 @@ export function defaultUnitForPricingKey(
 ): string {
   switch (pricingKey) {
     case 'mortar':
-      return 'm3'
+      return '20kg_bag'
     case 'labour':
       return 'm2'
     case 'timber_fence':
@@ -92,6 +98,46 @@ export function defaultPricingMap(): PricingMap {
   ) as PricingMap
 }
 
+export function calculateMortarMixEstimate(mortarVolumeM3: number): {
+  dryMixKg: number
+  bagCount: number
+} {
+  if (!Number.isFinite(mortarVolumeM3) || mortarVolumeM3 <= 0) {
+    return { dryMixKg: 0, bagCount: 0 }
+  }
+
+  const dryMixKg = mortarVolumeM3 * MORTAR_DRY_MIX_KG_PER_M3 * MORTAR_WASTAGE_FACTOR
+  const bagCount = Math.ceil(dryMixKg / MORTAR_BAG_WEIGHT_KG)
+
+  return {
+    dryMixKg,
+    bagCount,
+  }
+}
+
+function calculateMortarCost(mortarVolumeM3: number, mortarPrice: PricingItem): {
+  cost: number
+  dryMixKg: number
+  bagCount: number
+} {
+  const estimate = calculateMortarMixEstimate(mortarVolumeM3)
+  const unitPrice = normalizeUnitPrice(mortarPrice)
+
+  if (mortarPrice.unit === '20kg_bag') {
+    return {
+      cost: estimate.bagCount * unitPrice,
+      dryMixKg: estimate.dryMixKg,
+      bagCount: estimate.bagCount,
+    }
+  }
+
+  return {
+    cost: mortarVolumeM3 * unitPrice,
+    dryMixKg: estimate.dryMixKg,
+    bagCount: estimate.bagCount,
+  }
+}
+
 export function calculateCostPricing(params: {
   brickCount: number
   mortarVolumeM3: number
@@ -100,10 +146,9 @@ export function calculateCostPricing(params: {
   timberFence: string
   prices: PricingMap
 }): CostPricing {
-  const wallAreaM2 = params.renderedLengthM * params.renderedHeightM
   const brickCost = params.brickCount * normalizeUnitPrice(params.prices.standard_brick)
-  const mortarCost = params.mortarVolumeM3 * normalizeUnitPrice(params.prices.mortar)
-  const labourCost = wallAreaM2 * normalizeUnitPrice(params.prices.labour)
+  const mortar = calculateMortarCost(params.mortarVolumeM3, params.prices.mortar)
+  const labourCost = 0
   const infillCost =
     params.timberFence === 'timber'
       ? params.renderedLengthM * normalizeUnitPrice(params.prices.timber_fence)
@@ -113,10 +158,12 @@ export function calculateCostPricing(params: {
 
   return {
     brickCost,
-    mortarCost,
+    mortarCost: mortar.cost,
+    mortarDryMixKg: mortar.dryMixKg,
+    mortarBagCount: mortar.bagCount,
     labourCost,
     infillCost,
-    totalCost: brickCost + mortarCost + labourCost + infillCost,
+    totalCost: brickCost + mortar.cost + labourCost + infillCost,
     currency: params.prices.standard_brick.currency,
   }
 }

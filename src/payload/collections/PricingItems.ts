@@ -18,6 +18,17 @@ export const PRICING_KEYS = [
 
 export type PricingKey = (typeof PRICING_KEYS)[number]
 
+const PRICING_KEYS_BY_CATEGORY: Record<string, PricingKey[]> = {
+  brick: ['standard_brick'],
+  mortar: ['mortar'],
+  labour: ['labour'],
+  infill: ['timber_fence', 'pvc_fence'],
+}
+
+function getAllowedPricingKeys(category: string | null | undefined): PricingKey[] {
+  return category ? PRICING_KEYS_BY_CATEGORY[category] ?? [...PRICING_KEYS] : [...PRICING_KEYS]
+}
+
 function getFinalPriceDisplay(params: {
   priceSource: string | null | undefined
   manualUnitPriceDisplay: string | null | undefined
@@ -57,7 +68,6 @@ export const PricingItems: CollectionConfig = {
   slug: 'pricing-items',
   admin: {
     defaultColumns: [
-      'name',
       'key',
       'finalPriceDisplay',
       'finalPriceSourceDisplay',
@@ -65,7 +75,7 @@ export const PricingItems: CollectionConfig = {
       'isActive',
     ],
     group: 'Company Settings',
-    useAsTitle: 'name',
+    useAsTitle: 'key',
   },
   access: {
     create: adminsOnly,
@@ -129,12 +139,18 @@ export const PricingItems: CollectionConfig = {
         if (!data) return data
 
         const priceSource = data.priceSource ?? originalDoc?.priceSource
+        const category = data.category ?? originalDoc?.category
         const pricingKey = data.key ?? originalDoc?.key
         const unit = data.unit ?? originalDoc?.unit
         const selectedSupplierID = getRelationshipID(
           data.selectedSupplierPriceSource ??
             originalDoc?.selectedSupplierPriceSource,
         )
+        const allowedPricingKeys = getAllowedPricingKeys(category)
+
+        if (pricingKey && !allowedPricingKeys.includes(pricingKey)) {
+          throw new Error('Selected key does not match the selected category.')
+        }
 
         data.manualUnitPriceDisplay = formatPriceWithUnit(
           data.manualUnitPrice ?? originalDoc?.manualUnitPrice,
@@ -177,6 +193,7 @@ export const PricingItems: CollectionConfig = {
             source.lastStatus === 'success' &&
             typeof source.lastPrice === 'number'
           ) {
+            data.unit = source.unit ?? unit
             data.selectedSupplierUnitPrice = Number(
               normalizeSupplierUnitPrice({
                 pricingKey,
@@ -214,11 +231,6 @@ export const PricingItems: CollectionConfig = {
   },
   fields: [
     {
-      name: 'name',
-      type: 'text',
-      required: true,
-    },
-    {
       name: 'category',
       type: 'select',
       defaultValue: 'brick',
@@ -235,15 +247,19 @@ export const PricingItems: CollectionConfig = {
       type: 'select',
       hasMany: false,
       options: pricingKeyOptions,
+      filterOptions: ({ options, siblingData }) => {
+        const category =
+          typeof siblingData?.category === 'string'
+            ? siblingData.category
+            : undefined
+        const allowedPricingKeys = new Set(getAllowedPricingKeys(category))
+
+        return options.filter((option) =>
+          allowedPricingKeys.has(option.value as PricingKey),
+        )
+      },
       required: true,
       unique: true,
-    },
-    {
-      name: 'unit',
-      type: 'select',
-      defaultValue: 'each',
-      options: pricingUnitOptions,
-      required: true,
     },
     {
       name: 'priceSource',
@@ -264,10 +280,55 @@ export const PricingItems: CollectionConfig = {
       name: 'selectedSupplierPriceSource',
       type: 'relationship',
       relationTo: 'supplier-price-sources',
+      filterOptions: ({ siblingData }) => {
+        const pricingKey =
+          typeof siblingData?.key === 'string' ? siblingData.key : undefined
+
+        if (!pricingKey) {
+          return {
+            id: {
+              equals: -1,
+            },
+          }
+        }
+
+        return {
+          and: [
+            {
+              pricingKey: {
+                equals: pricingKey,
+              },
+            },
+            {
+              lastStatus: {
+                equals: 'success',
+              },
+            },
+            {
+              isEnabled: {
+                equals: true,
+              },
+            },
+          ],
+        }
+      },
       admin: {
+        allowCreate: false,
         condition: (_, siblingData) => siblingData.priceSource === 'supplier',
         description:
-          'Used when Price Source is Specific supplier price. Choose a source that has been fetched successfully.',
+          'Used when Price Source is Specific supplier price. Choose a source that has been fetched successfully. The unit will use the selected supplier source unit.',
+      },
+    },
+    {
+      name: 'unit',
+      type: 'select',
+      defaultValue: 'each',
+      options: pricingUnitOptions,
+      required: true,
+      admin: {
+        condition: (_, siblingData) => siblingData.priceSource !== 'supplier',
+        description:
+          'Set manually for manual and average prices. Specific supplier prices use the selected supplier source unit automatically.',
       },
     },
     {

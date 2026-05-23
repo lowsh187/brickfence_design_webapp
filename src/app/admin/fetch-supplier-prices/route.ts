@@ -32,27 +32,17 @@ async function fetchAndStoreSupplierPrice(
     const scraped = await scrapeSupplierPrice(source.productUrl)
     const unit =
       scraped.unit || source.unit || defaultUnitForPricingKey(source.pricingKey)
-
-    await payload.create({
-      collection: 'supplier-price-snapshots',
-      data: {
-        source: source.id,
-        supplierName,
-        pricingKey: source.pricingKey,
-        unitPrice: scraped.unitPrice,
-        currency: scraped.currency,
-        unit,
-        fetchedAt: new Date().toISOString(),
-        rawTitle: scraped.title,
-        rawUrl: source.productUrl,
-        status: 'success',
-      },
-    })
+    const previousPrice =
+      typeof source.lastPrice === 'number' ? source.lastPrice : undefined
+    const previousUnit = source.unit || unit
 
     await payload.update({
       collection: 'supplier-price-sources',
       id: source.id,
       data: {
+        previousPrice,
+        previousPriceDisplay: formatPriceWithUnit(previousPrice, previousUnit) || 'No data',
+        previousFetchedAt: source.lastFetchedAt ?? null,
         lastPrice: scraped.unitPrice,
         lastFetchedAt: new Date().toISOString(),
         lastStatus: 'success',
@@ -73,21 +63,6 @@ async function fetchAndStoreSupplierPrice(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown scraping error'
-
-    await payload.create({
-      collection: 'supplier-price-snapshots',
-      data: {
-        source: source.id,
-        supplierName,
-          pricingKey: source.pricingKey,
-          currency: 'AUD',
-          unit: source.unit || defaultUnitForPricingKey(source.pricingKey),
-        fetchedAt: new Date().toISOString(),
-        rawUrl: source.productUrl,
-        status: 'failed',
-        errorMessage: message,
-      },
-    })
 
     await payload.update({
       collection: 'supplier-price-sources',

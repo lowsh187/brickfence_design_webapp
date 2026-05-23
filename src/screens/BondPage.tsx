@@ -16,6 +16,11 @@ const STRETCHER_HIDDEN_PIER_SUPPORTED_SIZES = ['1_5x1', '1_5x1_5', '2x1', '2x2']
 const TWO_BY_TWO_ONLY_PIER_SIZES = ['2x2']
 const MAX_PIER_HEIGHT_M = 2.5
 
+function formatMeters(value: number): string {
+  if (!Number.isFinite(value)) return ''
+  return value.toFixed(2).replace(/\.?0+$/, '')
+}
+
 function supportedPierSizes(bondPattern: string, pierType: string): string[] {
   if (pierType === 'hidden' && bondPattern === 'stack') return STACK_HIDDEN_PIER_SUPPORTED_SIZES
   if (pierType === 'hidden' && bondPattern === 'stretcher') {
@@ -64,6 +69,7 @@ export default function BondPage() {
   const showPierSpacing = state.pierType !== 'none'
   const showInfill = state.pierType !== 'none'
   const spacingTooWide = showPierSpacing && pierSpacing > 3
+  const pierHeightAtMinimum = showPierHeight && height > 0 && pierHeight <= height
   const canRenderPierPreview = length > 0 && height > 0 && !spacingTooWide && brickDimensionsValid
   const hasSelectedBond = bonds.some((b) => b.id === state.bondPattern)
   const noCutAvailable = state.bondPattern === 'stretcher' || state.bondPattern === 'stack'
@@ -91,6 +97,9 @@ export default function BondPage() {
   const normalizePierHeightInput = (value: string) => {
     if (value === '') return ''
     const numericValue = parseFloat(value)
+    if (Number.isFinite(numericValue) && height > 0 && numericValue < height) {
+      return formatMeters(height)
+    }
     if (Number.isFinite(numericValue) && numericValue > MAX_PIER_HEIGHT_M) {
       return MAX_PIER_HEIGHT_M.toString()
     }
@@ -124,6 +133,21 @@ export default function BondPage() {
       })
     }
   }, [dispatch, state.pierHeight, state.pierType])
+
+  useEffect(() => {
+    if (state.pierType === 'none' || height <= 0) {
+      return
+    }
+
+    const currentPierHeight = parseFloat(state.pierHeight)
+    if (Number.isFinite(currentPierHeight) && currentPierHeight < height) {
+      dispatch({
+        type: 'SET_FIELD',
+        field: 'pierHeight',
+        value: formatMeters(height),
+      })
+    }
+  }, [dispatch, height, state.pierHeight, state.pierType])
 
   const bondPatternStep = (
     <div>
@@ -287,7 +311,7 @@ export default function BondPage() {
             </label>
             <input
               type="number"
-              min={Math.max(0.5, height).toFixed(1)}
+              min={formatMeters(Math.max(0.5, height))}
               max={MAX_PIER_HEIGHT_M}
               step="0.1"
               value={state.pierHeight}
@@ -303,6 +327,11 @@ export default function BondPage() {
             <p className="mt-1.5 text-xs text-text-muted">
               {t('pier.heightHint', { max: MAX_PIER_HEIGHT_M })}
             </p>
+            {pierHeightAtMinimum && (
+              <p className="mt-1.5 text-xs text-amber-600">
+                {t('pier.heightMinimumWarning')}
+              </p>
+            )}
           </div>
         )}
 
