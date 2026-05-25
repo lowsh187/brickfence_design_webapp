@@ -74,8 +74,14 @@ function renderBondPage(savedState?: Record<string, string>) {
   return render(<TestRouter />)
 }
 
-async function goToPierStep(user: ReturnType<typeof userEvent.setup>) {
+async function goToPierStep(
+  user: ReturnType<typeof userEvent.setup>,
+  options: { selectCutBricks?: boolean } = {},
+) {
   await user.click(screen.getByRole('button', { name: /common.next/i }))
+  if (options.selectCutBricks) {
+    await user.click(screen.getByRole('button', { name: /cutBricks.options.allowed/i }))
+  }
   await user.click(screen.getByRole('button', { name: /common.next/i }))
 }
 
@@ -92,8 +98,9 @@ describe('BondPage', () => {
     await user.click(screen.getByRole('button', { name: /pier.types.hidden/i }))
 
     expect(screen.getByText('pier.size')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('1.8')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('2.8')).toBeInTheDocument()
+    const numberInputs = screen.getAllByRole('spinbutton')
+    expect(numberInputs[0]).toHaveDisplayValue('2')
+    expect(numberInputs[1]).toHaveDisplayValue('2.8')
     expect(screen.getByText('pier.timberFence')).toBeInTheDocument()
   })
 
@@ -102,7 +109,7 @@ describe('BondPage', () => {
     renderBondPage()
 
     await user.click(screen.getByRole('button', { name: /bond.stack/i }))
-    await goToPierStep(user)
+    await goToPierStep(user, { selectCutBricks: true })
     await user.click(screen.getByRole('button', { name: /pier.types.hidden/i }))
 
     expect(screen.getByText('pier.sizes.1_5x1').closest('button')).toBeDisabled()

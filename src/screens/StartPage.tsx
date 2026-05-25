@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import Stepper from '../components/Stepper'
+import { useFormContext } from '../context/FormContext'
 import { useAppNavigate } from '../navigation'
 
 export default function StartPage() {
   const navigate = useAppNavigate()
   const { t } = useTranslation()
+  const { dispatch } = useFormContext()
 
   return (
     <div className="flex flex-col items-center">
@@ -26,7 +28,10 @@ export default function StartPage() {
         </p>
 
         <button
-          onClick={() => navigate('/dimensions')}
+          onClick={() => {
+            dispatch({ type: 'RESET' })
+            navigate('/dimensions')
+          }}
           className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm cursor-pointer"
         >
           {t('start.getStarted')}

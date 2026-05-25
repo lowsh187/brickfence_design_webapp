@@ -101,6 +101,11 @@ describe('DimensionsPage', () => {
     await user.type(inputs[0], '5')
     await user.type(inputs[1], '1.8')
 
+    expect(nextButton).toBeDisabled()
+    expect(screen.getByTestId('show-diagram')).toHaveTextContent('false')
+
+    await user.click(screen.getByText('dimensions.standardBrick'))
+
     expect(nextButton).toBeEnabled()
     expect(screen.getByTestId('show-diagram')).toHaveTextContent('true')
   })
@@ -144,6 +149,7 @@ describe('DimensionsPage', () => {
 
     await user.type(inputs[0], '5')
     await user.type(inputs[1], '1.8')
+    await user.click(screen.getByText('dimensions.standardBrick'))
     await user.click(getNextButton())
 
     expect(screen.getByText('bond-route')).toBeInTheDocument()

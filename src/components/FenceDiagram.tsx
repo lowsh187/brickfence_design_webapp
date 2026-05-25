@@ -151,20 +151,11 @@ function buildPierSpecs(
   bondPattern: string,
 ): Record<string, PierSpec> {
   const { length: brickL, width: brickW, mortar } = dimensions
-  const queenCloser = Math.max(1, (brickL - brickW) / 2 - mortar)
   const twoBrickPierOddCourse = [brickL, brickL]
   const twoBrickPierEvenCourse =
     bondPattern === 'stack' ? twoBrickPierOddCourse : [brickW, brickL, brickW]
-  const flemishPierOddCourse = [brickW, queenCloser, brickW, queenCloser]
-  const flemishPierEvenCourse = [queenCloser, brickW, queenCloser, brickW]
-  const pier15OddCourse =
-    bondPattern === 'flemish'
-      ? flemishPierOddCourse
-      : [brickL, brickW]
-  const pier15EvenCourse =
-    bondPattern === 'flemish'
-      ? flemishPierEvenCourse
-      : [brickW, brickL]
+  const pier15OddCourse = [brickL, brickW]
+  const pier15EvenCourse = [brickW, brickL]
 
   return {
     '1_5x1': {
@@ -323,38 +314,50 @@ function buildEnglishPierBayLayout(params: {
   pierWidth: number
   dimensions: BrickDimensions
 }): StructureLayout {
-  const piers = buildEvenPierLayouts(params.wallL, params.pierWidth, params.bayCount)
+  const requestedPiers = buildEvenPierLayouts(params.wallL, params.pierWidth, params.bayCount)
+  const piers: PierLayout[] = []
   const wallSegments: WallSegment[] = []
   let renderedH = params.wallH
+  let cursor = 0
 
-  for (let i = 0; i < piers.length - 1; i++) {
-    const current = piers[i]
-    const next = piers[i + 1]
-    const left = current.left + current.width
-    const width = Math.max(0, next.left - left)
-    if (width <= 0) continue
+  for (let i = 0; i <= params.bayCount; i++) {
+    piers.push({
+      center: cursor + params.pierWidth / 2,
+      left: cursor,
+      width: params.pierWidth,
+    })
+    cursor += params.pierWidth
+
+    if (i >= params.bayCount) continue
+
+    const current = requestedPiers[i]
+    const next = requestedPiers[i + 1]
+    const requestedLeft = current.left + current.width
+    const requestedWidth = Math.max(0, next.left - requestedLeft)
+    if (requestedWidth <= 0) continue
 
     const bay = generateEnglishBay({
-      wallL: width,
+      wallL: requestedWidth,
       wallH: params.wallH,
       brickDimensions: params.dimensions,
     })
 
     renderedH = Math.max(renderedH, bay.wallH)
     wallSegments.push({
-      left,
-      width,
+      left: cursor,
+      width: bay.wallW,
       top: 0,
       height: bay.wallH,
       bricks: bay.bricks.map((brick) => ({
         ...brick,
-        x: brick.x + left,
+        x: brick.x + cursor,
       })),
     })
+    cursor += bay.wallW
   }
 
   return {
-    renderedW: params.wallL,
+    renderedW: cursor,
     renderedH,
     piers,
     wallSegments,
@@ -788,6 +791,7 @@ export default function FenceDiagram({
     }
   }, [
     bond,
+    bondPatternSafe,
     brickModule,
     cutBricksSafe,
     dimensions,

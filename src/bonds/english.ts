@@ -1,5 +1,6 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
+import { snapWallLengthForCutRule } from './cutRules'
 
 interface RowElem {
   x: number
@@ -61,7 +62,10 @@ export function generateEnglishBay({ wallL, wallH, brickDimensions }: BondParams
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
   const wallPixH = nRows * courseH - dimensions.mortar
-  const targetWallL = wallL
+  const targetWallL = snapWallLengthForCutRule(wallL, dimensions, (candidateWallL) => [
+    stretcherRow(candidateWallL, dimensions),
+    headerRow(candidateWallL, dimensions),
+  ])
 
   const bricks: BrickData[] = []
   let brickCount = 0
@@ -94,7 +98,7 @@ export function generateEnglishBay({ wallL, wallH, brickDimensions }: BondParams
     nRows,
     brickCount,
     adjPieceLength,
-    snapped: false,
+    snapped: targetWallL !== wallL,
   }
 }
 

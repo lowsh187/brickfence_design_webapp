@@ -661,28 +661,39 @@ export default function CostPage() {
   const height = parseFloat(state.height) || 0
   const pierHeight = parseFloat(state.pierHeight) || 0
   const brickDimensions = brickDimensionsFromStrings(state)
-  const brickDimensionsValid = validateBrickDimensions(brickDimensions)
+  const brickDimensionsValid =
+    state.brickSizeMode === 'standard' ||
+    (state.brickSizeMode === 'custom' &&
+      state.brickLength !== '' &&
+      state.brickWidth !== '' &&
+      state.brickHeight !== '' &&
+      state.mortarJoint !== '' &&
+      validateBrickDimensions(brickDimensions))
+  const pierTypeSafe = state.pierType || 'none'
+  const cutBricksSafe = state.cutBricks || 'allowed'
+  const timberFenceSafe = state.timberFence || 'none'
+  const hasPierType = pierTypeSafe !== 'none'
   const effectivePierSize =
     state.bondPattern === 'stack' &&
-    state.pierType === 'hidden' &&
+    pierTypeSafe === 'hidden' &&
     state.pierSize !== '2x1' &&
     state.pierSize !== '2x2'
       ? '2x1'
       : (state.bondPattern === 'stack' ||
           state.bondPattern === 'stretcher') &&
-        state.pierType === 'exposed' &&
+        pierTypeSafe === 'exposed' &&
         state.pierSize !== '2x2'
       ? '2x2'
-      : state.pierSize
+      : state.pierSize || '1_5x1_5'
   const metrics = computeMetrics({
     lengthM: length,
     heightM: height,
     bondPattern: state.bondPattern,
-    pierType: state.pierType,
+    pierType: pierTypeSafe,
     pierSize: effectivePierSize,
     pierHeightM: pierHeight,
     pierSpacingM: parseFloat(state.pierSpacing) || 0,
-    cutBricks: state.cutBricks,
+    cutBricks: cutBricksSafe,
     brickDimensions: brickDimensionsValid ? brickDimensions : DEFAULT_BRICK_DIMENSIONS,
   })
   const metersLabel = t('cost.meters')
@@ -693,14 +704,15 @@ export default function CostPage() {
     mortarVolumeM3: metrics.mortarVolumeM3,
     renderedLengthM: metrics.renderedLengthM,
     renderedHeightM: metrics.renderedHeightM,
-    timberFence: state.timberFence,
+    bondPattern: state.bondPattern,
+    timberFence: timberFenceSafe,
     prices,
   })
 
   useEffect(() => {
     let cancelled = false
 
-    fetch('/pricing-data')
+    fetch('/pricing-data', { cache: 'no-store' })
       .then((response) => response.json())
       .then((data: { prices?: PricingMap; source?: 'cms' | 'default' }) => {
         if (cancelled) return
@@ -747,7 +759,13 @@ export default function CostPage() {
     navigate('/')
   }
 
-  const missingData = !length || !height || !state.bondPattern || !brickDimensionsValid
+  const missingData =
+    !length ||
+    !height ||
+    !state.bondPattern ||
+    !state.cutBricks ||
+    !state.pierType ||
+    !brickDimensionsValid
 
   useEffect(() => {
     if (missingData) navigate('/dimensions', { replace: true })
@@ -777,23 +795,23 @@ export default function CostPage() {
           />
           <Row label={t('cost.bondPattern')} value={t(`bond.${state.bondPattern}`)} />
           <Row label={t('cost.cutBricks')} value={t(`cutBricks.options.${state.cutBricks}`)} />
-          <Row label={t('cost.pierType')} value={t(`pier.types.${state.pierType}`)} />
-          {state.pierType !== 'none' && (
+          <Row label={t('cost.pierType')} value={t(`pier.types.${pierTypeSafe}`)} />
+          {hasPierType && (
             <Row label={t('cost.pierSize')} value={t(`pier.sizes.${effectivePierSize}`)} />
           )}
-          {state.pierType !== 'none' && (
+          {hasPierType && (
             <Row label={t('cost.pierHeight')} value={`${state.pierHeight} ${t('cost.meters')}`} />
           )}
-          {state.pierType !== 'none' && (
+          {hasPierType && (
             <Row
               label={t('cost.pierSpacing')}
               value={`${state.pierSpacing} ${t('cost.meters')}`}
             />
           )}
-          {state.pierType !== 'none' && (
+          {hasPierType && (
             <Row
               label={t('cost.timberFence')}
-              value={t(`pier.timberFenceOptions.${state.timberFence}`)}
+              value={t(`pier.timberFenceOptions.${timberFenceSafe}`)}
             />
           )}
           <Row label={t('cost.brickCount')} value={metrics.brickCount.toString()} />
@@ -815,9 +833,9 @@ export default function CostPage() {
           />
           <Row
             label={t('cost.labourCost')}
-            value=""
+            value={formatCurrency(pricing.labourCost, pricing.currency)}
           />
-          {state.timberFence !== 'none' && (
+          {timberFenceSafe !== 'none' && (
             <Row
               label={t('cost.infillCost')}
               value={formatCurrency(pricing.infillCost, pricing.currency)}
@@ -882,12 +900,12 @@ export default function CostPage() {
         lengthM={length}
         heightM={height}
         bondPattern={state.bondPattern}
-        pierType={state.pierType}
+        pierType={pierTypeSafe}
         pierSize={effectivePierSize}
         pierHeightM={pierHeight}
         pierSpacingM={parseFloat(state.pierSpacing) || 0}
-        cutBricks={state.cutBricks}
-        timberFence={state.timberFence}
+        cutBricks={cutBricksSafe}
+        timberFence={timberFenceSafe}
         brickDimensions={brickDimensions}
         showDiagram={length > 0 && height > 0}
       />

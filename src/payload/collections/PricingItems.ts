@@ -1,32 +1,86 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 import { adminsOnly, anyone } from '../access'
 import { pricingKeyOptions, pricingUnitOptions } from '../pricingOptions'
-import { formatPriceWithUnit } from '../../pricing'
+import {
+  LABOUR_PRICING_KEYS,
+  PRICING_KEYS,
+  type PricingKey,
+  defaultUnitForPricingKey,
+  formatPriceWithUnit,
+  isLabourPricingKey,
+} from '../../pricing'
 import {
   getRelationshipID,
   normalizeSupplierUnitPrice,
 } from '../../supplierPricing'
 
-export const PRICING_KEYS = [
-  'standard_brick',
-  'mortar',
-  'labour',
-  'timber_fence',
-  'pvc_fence',
-] as const
-
-export type PricingKey = (typeof PRICING_KEYS)[number]
+const ADMIN_LABOUR_PRICING_KEYS = LABOUR_PRICING_KEYS.filter(
+  (key) => key !== 'labour',
+)
 
 const PRICING_KEYS_BY_CATEGORY: Record<string, PricingKey[]> = {
   brick: ['standard_brick'],
   mortar: ['mortar'],
-  labour: ['labour'],
+  labour: [...ADMIN_LABOUR_PRICING_KEYS],
   infill: ['timber_fence', 'pvc_fence'],
 }
 
+const UNITS_BY_PRICING_KEY: Partial<Record<PricingKey, string[]>> = {
+  standard_brick: ['each', 'per_quantity'],
+  mortar: ['per_bag', 'm3'],
+  timber_fence: ['m'],
+  pvc_fence: ['m'],
+}
+
+const PRICE_SOURCE_OPTIONS = [
+  { label: 'Manual price', value: 'manual' },
+  { label: 'Supplier average price', value: 'average' },
+  { label: 'Specific supplier price', value: 'supplier' },
+]
+
 function getAllowedPricingKeys(category: string | null | undefined): PricingKey[] {
   return category ? PRICING_KEYS_BY_CATEGORY[category] ?? [...PRICING_KEYS] : [...PRICING_KEYS]
+}
+
+function getAllowedUnits(
+  pricingKey: string | null | undefined,
+  category?: string | null,
+): string[] {
+  if (isLabourPricingKey(pricingKey)) return ['per_brick', 'custom']
+  if (!pricingKey && category) {
+    const categoryKeys = getAllowedPricingKeys(category)
+    const units = new Set(
+      categoryKeys.flatMap((key) =>
+        isLabourPricingKey(key)
+          ? ['per_brick']
+          : UNITS_BY_PRICING_KEY[key] ?? [defaultUnitForPricingKey(key)],
+      ),
+    )
+    units.add('custom')
+
+    return [...units]
+  }
+
+  if (pricingKey && pricingKey in UNITS_BY_PRICING_KEY) {
+    return [
+      ...(UNITS_BY_PRICING_KEY[pricingKey as PricingKey] ?? [defaultUnitForPricingKey(pricingKey)]),
+      'custom',
+    ]
+  }
+
+  return pricingUnitOptions.map((option) => option.value)
+}
+
+function resolveUnitForDisplay(
+  unit: string | null | undefined,
+  customUnit: string | null | undefined,
+): string | null | undefined {
+  return unit === 'custom' ? customUnit || unit : unit
+}
+
+function optionValue(option: string | { value: string }): string {
+  return typeof option === 'string' ? option : option.value
 }
 
 function getFinalPriceDisplay(params: {
@@ -86,7 +140,7 @@ export const PricingItems: CollectionConfig = {
   hooks: {
     afterRead: [
       async ({ doc, req }) => {
-        const unit = doc.unit
+        const unit = resolveUnitForDisplay(doc.unit, doc.customUnit)
         const manualUnitPriceDisplay =
           doc.manualUnitPriceDisplay ||
           formatPriceWithUnit(doc.manualUnitPrice, unit)
@@ -138,10 +192,13 @@ export const PricingItems: CollectionConfig = {
       async ({ data, originalDoc, req }) => {
         if (!data) return data
 
-        const priceSource = data.priceSource ?? originalDoc?.priceSource
+        let priceSource = data.priceSource ?? originalDoc?.priceSource
         const category = data.category ?? originalDoc?.category
         const pricingKey = data.key ?? originalDoc?.key
-        const unit = data.unit ?? originalDoc?.unit
+        let unit = data.unit ?? originalDoc?.unit
+        let unitQuantity = data.unitQuantity ?? originalDoc?.unitQuantity
+        const customUnit = data.customUnit ?? originalDoc?.customUnit
+        const bagWeightKg = data.bagWeightKg ?? originalDoc?.bagWeightKg
         const selectedSupplierID = getRelationshipID(
           data.selectedSupplierPriceSource ??
             originalDoc?.selectedSupplierPriceSource,
@@ -152,17 +209,50 @@ export const PricingItems: CollectionConfig = {
           throw new Error('Selected key does not match the selected category.')
         }
 
+        if (category === 'labour' || (pricingKey && isLabourPricingKey(pricingKey))) {
+          priceSource = 'manual'
+          data.priceSource = 'manual'
+          data.selectedSupplierPriceSource = null
+        }
+
+        if (pricingKey === 'standard_brick' && unit === 'per_1000') {
+          unit = 'per_quantity'
+          unitQuantity = 1000
+          data.unit = unit
+          data.unitQuantity = unitQuantity
+        }
+        const allowedUnits = getAllowedUnits(pricingKey, category)
+        if (!unit || !allowedUnits.includes(unit)) {
+          unit = allowedUnits[0] ?? defaultUnitForPricingKey(pricingKey)
+          data.unit = unit
+        }
+        if (
+          pricingKey === 'standard_brick' &&
+          unit === 'per_quantity' &&
+          (typeof unitQuantity !== 'number' || unitQuantity <= 1)
+        ) {
+          unitQuantity = 1000
+          data.unitQuantity = unitQuantity
+        }
+        if (pricingKey === 'mortar' && unit === 'per_bag' && typeof bagWeightKg !== 'number') {
+          data.bagWeightKg = 20
+        }
+        const displayUnit = resolveUnitForDisplay(unit, customUnit)
+
         data.manualUnitPriceDisplay = formatPriceWithUnit(
           data.manualUnitPrice ?? originalDoc?.manualUnitPrice,
-          unit,
+          displayUnit,
+          unitQuantity,
         )
         data.autoAverageUnitPriceDisplay = formatPriceWithUnit(
           data.autoAverageUnitPrice ?? originalDoc?.autoAverageUnitPrice,
-          unit,
+          displayUnit,
+          unitQuantity,
         )
         data.effectiveUnitPriceDisplay = formatPriceWithUnit(
           data.effectiveUnitPrice ?? originalDoc?.effectiveUnitPrice,
-          unit,
+          displayUnit,
+          unitQuantity,
         )
         data.finalPriceSourceDisplay = getFinalPriceSourceDisplay({
           priceSource,
@@ -194,16 +284,25 @@ export const PricingItems: CollectionConfig = {
             typeof source.lastPrice === 'number'
           ) {
             data.unit = source.unit ?? unit
+            data.unitQuantity = source.unitQuantity ?? data.unitQuantity
+            data.customUnit = source.customUnit ?? data.customUnit
+            data.bagWeightKg = source.bagWeightKg ?? data.bagWeightKg
+            const sourceDisplayUnit = resolveUnitForDisplay(
+              source.unit,
+              source.customUnit,
+            )
             data.selectedSupplierUnitPrice = Number(
               normalizeSupplierUnitPrice({
                 pricingKey,
                 unit: source.unit,
+                unitQuantity: source.unitQuantity,
                 unitPrice: source.lastPrice,
               }).toFixed(2),
             )
             data.selectedSupplierUnitPriceDisplay = formatPriceWithUnit(
               source.lastPrice,
-              source.unit,
+              sourceDisplayUnit,
+              source.unitQuantity,
             )
             data.finalPriceSourceDisplay = getFinalPriceSourceDisplay({
               priceSource,
@@ -255,7 +354,7 @@ export const PricingItems: CollectionConfig = {
         const allowedPricingKeys = new Set(getAllowedPricingKeys(category))
 
         return options.filter((option) =>
-          allowedPricingKeys.has(option.value as PricingKey),
+          allowedPricingKeys.has(optionValue(option) as PricingKey),
         )
       },
       required: true,
@@ -265,15 +364,25 @@ export const PricingItems: CollectionConfig = {
       name: 'priceSource',
       type: 'select',
       defaultValue: 'manual',
-      options: [
-        { label: 'Manual price', value: 'manual' },
-        { label: 'Supplier average price', value: 'average' },
-        { label: 'Specific supplier price', value: 'supplier' },
-      ],
+      options: PRICE_SOURCE_OPTIONS,
+      filterOptions: ({ options, siblingData }) => {
+        const pricingKey =
+          typeof siblingData?.key === 'string' ? siblingData.key : undefined
+        const category =
+          typeof siblingData?.category === 'string'
+            ? siblingData.category
+            : undefined
+
+        if (category === 'labour' || isLabourPricingKey(pricingKey)) {
+          return options.filter((option) => optionValue(option) === 'manual')
+        }
+
+        return options
+      },
       required: true,
       admin: {
         description:
-          'Choose whether the calculator uses the company manual price or the supplier average price.',
+          'Choose whether the calculator uses the company manual price or a supplier price. Labour costs are manual only.',
       },
     },
     {
@@ -282,17 +391,15 @@ export const PricingItems: CollectionConfig = {
       relationTo: 'supplier-price-sources',
       filterOptions: ({ siblingData }) => {
         const pricingKey =
-          typeof siblingData?.key === 'string' ? siblingData.key : undefined
+          typeof (siblingData as { key?: unknown })?.key === 'string'
+            ? (siblingData as { key: string }).key
+            : undefined
 
         if (!pricingKey) {
-          return {
-            id: {
-              equals: -1,
-            },
-          }
+          return false
         }
 
-        return {
+        const where: Where = {
           and: [
             {
               pricingKey: {
@@ -311,6 +418,8 @@ export const PricingItems: CollectionConfig = {
             },
           ],
         }
+
+        return where
       },
       admin: {
         allowCreate: false,
@@ -324,12 +433,55 @@ export const PricingItems: CollectionConfig = {
       type: 'select',
       defaultValue: 'each',
       options: pricingUnitOptions,
+      filterOptions: ({ options, siblingData }) => {
+        const pricingKey =
+          typeof siblingData?.key === 'string' ? siblingData.key : undefined
+        const category =
+          typeof siblingData?.category === 'string'
+            ? siblingData.category
+            : undefined
+        const allowedUnits = new Set(getAllowedUnits(pricingKey, category))
+
+        return options.filter((option) => allowedUnits.has(optionValue(option)))
+      },
       required: true,
       admin: {
         condition: (_, siblingData) => siblingData.priceSource !== 'supplier',
         description:
           'Set manually for manual and average prices. Specific supplier prices use the selected supplier source unit automatically.',
       },
+    },
+    {
+      name: 'unitQuantity',
+      type: 'number',
+      defaultValue: 1000,
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'standard_brick' &&
+          siblingData.unit === 'per_quantity',
+        description: 'Number of bricks covered by this price.',
+      },
+      min: 1,
+    },
+    {
+      name: 'customUnit',
+      type: 'text',
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.priceSource !== 'supplier' && siblingData.unit === 'custom',
+        description: 'Enter the custom unit label used for display and pricing.',
+      },
+    },
+    {
+      name: 'bagWeightKg',
+      type: 'number',
+      defaultValue: 20,
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'mortar' && siblingData.unit === 'per_bag',
+        description: 'Bag weight in kilograms. Used to estimate mortar bag count.',
+      },
+      min: 0,
     },
     {
       name: 'manualUnitPrice',

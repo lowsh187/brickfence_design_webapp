@@ -62,12 +62,13 @@ export default function BondPage() {
   const height = parseFloat(state.height) || 0
   const brickDimensions = brickDimensionsFromStrings(state)
   const brickDimensionsValid = validateBrickDimensions(brickDimensions)
-  const showPierSize = state.pierType !== 'none'
-  const showPierHeight = state.pierType !== 'none'
+  const hasPierType = state.pierType !== '' && state.pierType !== 'none'
+  const showPierSize = hasPierType
+  const showPierHeight = hasPierType
   const pierHeight = parseFloat(state.pierHeight) || 0
   const pierSpacing = parseFloat(state.pierSpacing) || 0
-  const showPierSpacing = state.pierType !== 'none'
-  const showInfill = state.pierType !== 'none'
+  const showPierSpacing = hasPierType
+  const showInfill = hasPierType
   const spacingTooWide = showPierSpacing && pierSpacing > 3
   const pierHeightAtMinimum = showPierHeight && height > 0 && pierHeight <= height
   const canRenderPierPreview = length > 0 && height > 0 && !spacingTooWide && brickDimensionsValid
@@ -78,11 +79,32 @@ export default function BondPage() {
     [state.bondPattern, state.pierType],
   )
 
+  const clearPierFields = () => {
+    dispatch({ type: 'SET_FIELD', field: 'pierType', value: '' })
+    dispatch({ type: 'SET_FIELD', field: 'pierSize', value: '' })
+    dispatch({ type: 'SET_FIELD', field: 'pierHeight', value: '' })
+    dispatch({ type: 'SET_FIELD', field: 'pierSpacing', value: '' })
+    dispatch({ type: 'SET_FIELD', field: 'timberFence', value: '' })
+  }
+
+  const clearCutAndPierFields = () => {
+    dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: '' })
+    clearPierFields()
+  }
+
+  const clearBondAndLaterFields = () => {
+    dispatch({ type: 'SET_FIELD', field: 'bondPattern', value: '' })
+    clearCutAndPierFields()
+  }
+
   const goPrevious = () => {
     if (localStep > 0) {
+      if (localStep === 2) clearPierFields()
+      if (localStep === 1) clearCutAndPierFields()
       setLocalStep((step) => step - 1)
       return
     }
+    clearBondAndLaterFields()
     navigate('/dimensions')
   }
 
@@ -106,6 +128,11 @@ export default function BondPage() {
     return value
   }
 
+  const defaultPierHeight = () => {
+    if (height <= 0) return ''
+    return formatMeters(Math.min(MAX_PIER_HEIGHT_M, height + 0.2))
+  }
+
   useEffect(() => {
     if (!noCutAvailable && state.cutBricks === 'notAllowed') {
       dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: 'allowed' })
@@ -113,17 +140,13 @@ export default function BondPage() {
   }, [dispatch, noCutAvailable, state.cutBricks])
 
   useEffect(() => {
-    if (state.pierType !== 'none' && !currentSupportedPierSizes.includes(state.pierSize)) {
-      dispatch({
-        type: 'SET_FIELD',
-        field: 'pierSize',
-        value: currentSupportedPierSizes[0] ?? '1_5x1_5',
-      })
+    if (hasPierType && state.pierSize && !currentSupportedPierSizes.includes(state.pierSize)) {
+      dispatch({ type: 'SET_FIELD', field: 'pierSize', value: '' })
     }
-  }, [currentSupportedPierSizes, dispatch, state.pierSize, state.pierType])
+  }, [currentSupportedPierSizes, dispatch, hasPierType, state.pierSize])
 
   useEffect(() => {
-    if (state.pierType === 'none') return
+    if (!hasPierType) return
     const currentPierHeight = parseFloat(state.pierHeight)
     if (Number.isFinite(currentPierHeight) && currentPierHeight > MAX_PIER_HEIGHT_M) {
       dispatch({
@@ -132,10 +155,10 @@ export default function BondPage() {
         value: MAX_PIER_HEIGHT_M.toString(),
       })
     }
-  }, [dispatch, state.pierHeight, state.pierType])
+  }, [dispatch, hasPierType, state.pierHeight])
 
   useEffect(() => {
-    if (state.pierType === 'none' || height <= 0) {
+    if (!hasPierType || height <= 0) {
       return
     }
 
@@ -147,7 +170,7 @@ export default function BondPage() {
         value: formatMeters(height),
       })
     }
-  }, [dispatch, height, state.pierHeight, state.pierType])
+  }, [dispatch, hasPierType, height, state.pierHeight])
 
   const bondPatternStep = (
     <div>
@@ -163,6 +186,7 @@ export default function BondPage() {
               type="button"
               onClick={() => {
                 dispatch({ type: 'SET_FIELD', field: 'bondPattern', value: bond.id })
+                clearCutAndPierFields()
               }}
               className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-colors cursor-pointer text-left ${
                 selected
@@ -209,6 +233,7 @@ export default function BondPage() {
               onClick={() => {
                 if (disabled) return
                 dispatch({ type: 'SET_FIELD', field: 'cutBricks', value: option })
+                clearPierFields()
               }}
               className={`rounded-xl border p-4 text-left transition-colors ${
                 disabled
@@ -239,13 +264,34 @@ export default function BondPage() {
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {(['none', 'hidden', 'exposed'] as const).map((pierType) => {
             const selected = state.pierType === pierType
+            const defaultPierSize = supportedPierSizes(state.bondPattern, pierType)[0] ?? ''
             return (
               <button
                 key={pierType}
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   dispatch({ type: 'SET_FIELD', field: 'pierType', value: pierType })
-                }
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'pierSize',
+                    value: pierType === 'none' ? '' : defaultPierSize,
+                  })
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'pierHeight',
+                    value: pierType === 'none' ? '' : defaultPierHeight(),
+                  })
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'pierSpacing',
+                    value: pierType === 'none' ? '' : '2.8',
+                  })
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'timberFence',
+                    value: pierType === 'none' ? '' : 'none',
+                  })
+                }}
                 className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
                   selected
                     ? 'border-primary bg-primary/5'
@@ -439,6 +485,9 @@ export default function BondPage() {
           onClick={goNext}
           disabled={
             (localStep === 0 && !canProceed) ||
+            (localStep === 1 && !state.cutBricks) ||
+            (localStep === 2 && !state.pierType) ||
+            (localStep === 2 && hasPierType && !state.pierSize) ||
             (localStep === 2 && (spacingTooWide || !brickDimensionsValid))
           }
           className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm cursor-pointer"
@@ -460,14 +509,14 @@ export default function BondPage() {
         lengthM={length}
         heightM={height}
         bondPattern={state.bondPattern}
-        pierType={state.pierType}
-        pierSize={state.pierSize}
+        pierType={state.pierType || 'none'}
+        pierSize={state.pierSize || undefined}
         pierHeightM={pierHeight}
         pierSpacingM={pierSpacing}
-        cutBricks={state.cutBricks}
-        timberFence={state.timberFence}
+        cutBricks={state.cutBricks || undefined}
+        timberFence={state.timberFence || undefined}
         brickDimensions={brickDimensions}
-        showDiagram={canRenderPierPreview}
+        showDiagram={canRenderPierPreview && !!state.bondPattern && !!state.cutBricks}
       />
     </div>
   )

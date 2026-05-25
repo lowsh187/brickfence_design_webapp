@@ -23,8 +23,16 @@ export default function DimensionsPage() {
   const length = parseFloat(state.length) || 0
   const height = parseFloat(state.height) || 0
   const brickDimensions = brickDimensionsFromStrings(state)
-  const brickDimensionsValid = validateBrickDimensions(brickDimensions)
+  const usingStandardBrickSize = state.brickSizeMode === 'standard'
   const usingCustomBrickSize = state.brickSizeMode === 'custom'
+  const customBrickFieldsComplete =
+    state.brickLength !== '' &&
+    state.brickWidth !== '' &&
+    state.brickHeight !== '' &&
+    state.mortarJoint !== ''
+  const brickDimensionsValid =
+    usingStandardBrickSize ||
+    (usingCustomBrickSize && customBrickFieldsComplete && validateBrickDimensions(brickDimensions))
   const heightTooHigh = height > MAX_HEIGHT
   const canProceed = length > 0 && height > 0 && !heightTooHigh && brickDimensionsValid
 
@@ -190,7 +198,7 @@ export default function DimensionsPage() {
               type="button"
               onClick={setStandardBrickSize}
               className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
-                !usingCustomBrickSize
+                usingStandardBrickSize
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-gray-300 hover:bg-white'
               }`}
@@ -218,7 +226,7 @@ export default function DimensionsPage() {
             </button>
           </div>
 
-          {!usingCustomBrickSize && (
+          {usingStandardBrickSize && (
             <p className="mt-3 text-xs text-text-muted">
               {t('dimensions.standardBrickSummary')}
             </p>
@@ -269,7 +277,10 @@ export default function DimensionsPage() {
 
       <div className="flex justify-between mt-10">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            dispatch({ type: 'RESET' })
+            navigate('/')
+          }}
           className="inline-flex items-center gap-2 text-text-muted hover:text-text font-medium py-3 px-6 rounded-xl transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -299,12 +310,12 @@ export default function DimensionsPage() {
         lengthM={length}
         heightM={height}
         bondPattern={undefined}
-        pierType={state.pierType}
-        pierSize={state.pierSize}
+        pierType={undefined}
+        pierSize={undefined}
         pierHeightM={parseFloat(state.pierHeight) || 0}
         pierSpacingM={parseFloat(state.pierSpacing) || 0}
-        cutBricks={state.cutBricks}
-        timberFence={state.timberFence}
+        cutBricks={undefined}
+        timberFence={undefined}
         brickDimensions={brickDimensions}
         showDiagram={length > 0 && height > 0 && !heightTooHigh && brickDimensionsValid}
       />

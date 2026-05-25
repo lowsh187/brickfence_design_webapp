@@ -12,10 +12,17 @@ import {
   normalizeSupplierUnitPrice,
 } from '../../supplierPricing'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 type PricingItemDoc = {
   key?: string | null
   name?: string | null
   unit?: string | null
+  unitQuantity?: number | null
+  customUnit?: string | null
+  bagWeightKg?: number | null
   unitPrice?: number | null
   priceSource?: 'manual' | 'average' | 'supplier' | null
   selectedSupplierPriceSource?:
@@ -93,6 +100,7 @@ export async function GET() {
             supplierPrice = normalizeSupplierUnitPrice({
               pricingKey: doc.key,
               unit: supplierSource.unit,
+              unitQuantity: supplierSource.unitQuantity,
               unitPrice: supplierSource.lastPrice,
             })
           }
@@ -117,8 +125,19 @@ export async function GET() {
       prices[doc.key] = {
         key: doc.key,
         name: doc.name || prices[doc.key].name,
-        unit: doc.unit || prices[doc.key].unit,
+        unit:
+          doc.unit === 'custom'
+            ? doc.customUnit || doc.unit
+            : doc.unit || prices[doc.key].unit,
+        unitQuantity:
+          typeof doc.unitQuantity === 'number'
+            ? doc.unitQuantity
+            : prices[doc.key].unitQuantity,
         unitPrice,
+        bagWeightKg:
+          typeof doc.bagWeightKg === 'number'
+            ? doc.bagWeightKg
+            : prices[doc.key].bagWeightKg,
         currency: doc.currency || prices[doc.key].currency,
       } satisfies PricingItem
     }
@@ -131,5 +150,11 @@ export async function GET() {
   return NextResponse.json({
     prices,
     source,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Expires: '0',
+      Pragma: 'no-cache',
+    },
   })
 }

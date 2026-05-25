@@ -29,9 +29,21 @@ async function fetchAndStoreSupplierPrice(
   }
 
   try {
-    const scraped = await scrapeSupplierPrice(source.productUrl)
+    const scraped = await scrapeSupplierPrice(source.productUrl, source.pricingKey)
     const unit =
       scraped.unit || source.unit || defaultUnitForPricingKey(source.pricingKey)
+    const unitQuantity =
+      scraped.unitQuantity ?? source.unitQuantity ?? (unit === 'per_1000' ? 1000 : undefined)
+    if (
+      source.pricingKey === 'standard_brick' &&
+      unit === 'each' &&
+      scraped.unitPrice > 20 &&
+      !scraped.unit
+    ) {
+      throw new Error(
+        'Price was found, but the brick unit could not be determined. Please choose the unit manually.',
+      )
+    }
     const previousPrice =
       typeof source.lastPrice === 'number' ? source.lastPrice : undefined
     const previousUnit = source.unit || unit
@@ -41,7 +53,11 @@ async function fetchAndStoreSupplierPrice(
       id: source.id,
       data: {
         previousPrice,
-        previousPriceDisplay: formatPriceWithUnit(previousPrice, previousUnit) || 'No data',
+        previousPriceDisplay: formatPriceWithUnit(
+          previousPrice,
+          previousUnit,
+          source.unitQuantity,
+        ) || 'No data',
         previousFetchedAt: source.lastFetchedAt ?? null,
         lastPrice: scraped.unitPrice,
         lastFetchedAt: new Date().toISOString(),
@@ -50,8 +66,11 @@ async function fetchAndStoreSupplierPrice(
         lastPriceDisplay: formatPriceWithUnit(
           scraped.unitPrice,
           unit,
+          unitQuantity,
         ),
         unit,
+        unitQuantity,
+        bagWeightKg: scraped.bagWeightKg ?? source.bagWeightKg ?? null,
         supplierName,
       },
     })

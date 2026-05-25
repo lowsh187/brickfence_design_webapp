@@ -152,9 +152,20 @@ export interface Admin {
 export interface PricingItem {
   id: number;
   category: 'brick' | 'mortar' | 'labour' | 'infill';
-  key: 'standard_brick' | 'mortar' | 'labour' | 'timber_fence' | 'pvc_fence';
+  key:
+    | 'standard_brick'
+    | 'mortar'
+    | 'stretcher_bond_labour_cost'
+    | 'stack_bond_labour_cost'
+    | 'header_bond_labour_cost'
+    | 'english_bond_labour_cost'
+    | 'english_garden_bond_labour_cost'
+    | 'flemish_bond_labour_cost'
+    | 'flemish_garden_bond_labour_cost'
+    | 'timber_fence'
+    | 'pvc_fence';
   /**
-   * Choose whether the calculator uses the company manual price or the supplier average price.
+   * Choose whether the calculator uses the company manual price or a supplier price. Labour costs are manual only.
    */
   priceSource: 'manual' | 'average' | 'supplier';
   /**
@@ -164,7 +175,21 @@ export interface PricingItem {
   /**
    * Set manually for manual and average prices. Specific supplier prices use the selected supplier source unit automatically.
    */
-  unit?: ('each' | 'm3' | 'm2' | 'm' | 'per_1000' | '20kg_bag') | null;
+  unit?:
+    | ('each' | 'm3' | 'm2' | 'm' | 'per_quantity' | 'per_1000' | 'per_brick' | 'per_bag' | '20kg_bag' | 'custom')
+    | null;
+  /**
+   * Number of bricks covered by this price.
+   */
+  unitQuantity?: number | null;
+  /**
+   * Enter the custom unit label used for display and pricing.
+   */
+  customUnit?: string | null;
+  /**
+   * Bag weight in kilograms. Used to estimate mortar bag count.
+   */
+  bagWeightKg?: number | null;
   /**
    * Company controlled price. Used when Price Source is Manual price.
    */
@@ -226,16 +251,41 @@ export interface SupplierPriceSource {
    * Required for manual supplier sources. Automatically detected when Product URL is provided.
    */
   supplierName?: string | null;
-  pricingKey: 'standard_brick' | 'mortar' | 'labour' | 'timber_fence' | 'pvc_fence';
+  pricingKey:
+    | 'standard_brick'
+    | 'mortar'
+    | 'stretcher_bond_labour_cost'
+    | 'stack_bond_labour_cost'
+    | 'header_bond_labour_cost'
+    | 'english_bond_labour_cost'
+    | 'english_garden_bond_labour_cost'
+    | 'flemish_bond_labour_cost'
+    | 'flemish_garden_bond_labour_cost'
+    | 'timber_fence'
+    | 'pvc_fence';
   /**
-   * Required for manual supplier sources. Detected automatically when Product URL is provided.
+   * Required for manual supplier sources. URL sources detect this automatically, but failed URL sources can be corrected manually.
    */
-  unit?: ('each' | 'm3' | 'm2' | 'm' | 'per_1000' | '20kg_bag') | null;
+  unit?:
+    | ('each' | 'm3' | 'm2' | 'm' | 'per_quantity' | 'per_1000' | 'per_brick' | 'per_bag' | '20kg_bag' | 'custom')
+    | null;
+  /**
+   * Number of bricks covered by this supplier price.
+   */
+  unitQuantity?: number | null;
+  /**
+   * Enter the custom unit label used for display and pricing.
+   */
+  customUnit?: string | null;
+  /**
+   * Bag weight in kilograms. Used when this source is priced per bag.
+   */
+  bagWeightKg?: number | null;
   region?: string | null;
   includesGST?: boolean | null;
   isEnabled: boolean;
   /**
-   * Required for manual supplier sources. URL sources use the update button to fetch this value.
+   * Required for manual supplier sources. Failed URL sources can use this as a manual fallback price.
    */
   lastPrice?: number | null;
   /**
@@ -369,6 +419,9 @@ export interface PricingItemsSelect<T extends boolean = true> {
   priceSource?: T;
   selectedSupplierPriceSource?: T;
   unit?: T;
+  unitQuantity?: T;
+  customUnit?: T;
+  bagWeightKg?: T;
   manualUnitPrice?: T;
   manualUnitPriceDisplay?: T;
   autoAverageUnitPrice?: T;
@@ -395,6 +448,9 @@ export interface SupplierPriceSourcesSelect<T extends boolean = true> {
   supplierName?: T;
   pricingKey?: T;
   unit?: T;
+  unitQuantity?: T;
+  customUnit?: T;
+  bagWeightKg?: T;
   region?: T;
   includesGST?: T;
   isEnabled?: T;

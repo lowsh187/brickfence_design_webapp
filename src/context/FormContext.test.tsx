@@ -42,8 +42,8 @@ describe('FormProvider', () => {
     )
 
     expect(screen.getByTestId('length')).toHaveTextContent('')
-    expect(screen.getByTestId('bondPattern')).toHaveTextContent('stretcher')
-    expect(screen.getByTestId('brickSizeMode')).toHaveTextContent('standard')
+    expect(screen.getByTestId('bondPattern')).toHaveTextContent('')
+    expect(screen.getByTestId('brickSizeMode')).toHaveTextContent('')
   })
 
   it('loads saved form state from localStorage when cookie consent allows storage', () => {
@@ -84,7 +84,7 @@ describe('FormProvider', () => {
     )
 
     expect(screen.getByTestId('length')).toHaveTextContent('')
-    expect(screen.getByTestId('bondPattern')).toHaveTextContent('stretcher')
+    expect(screen.getByTestId('bondPattern')).toHaveTextContent('')
   })
 
   it('persists field updates to localStorage when storage is allowed', async () => {
@@ -116,6 +116,6 @@ describe('FormProvider', () => {
     await user.click(screen.getByRole('button', { name: 'reset' }))
 
     expect(screen.getByTestId('length')).toHaveTextContent('')
-    expect(screen.getByTestId('bondPattern')).toHaveTextContent('stretcher')
+    expect(screen.getByTestId('bondPattern')).toHaveTextContent('')
   })
 })

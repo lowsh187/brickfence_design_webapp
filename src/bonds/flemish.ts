@@ -1,6 +1,10 @@
 import type { BondPattern, BondParams, BondResult, BrickData } from './types'
-import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from './brickDimensions'
-import { snapWallLengthForCutRule } from './cutRules'
+import {
+  DEFAULT_BRICK_DIMENSIONS,
+  MIN_CUT_BRICK_DIMENSION,
+  type BrickDimensions,
+} from './brickDimensions'
+import { hasInvalidCutBrick } from './cutRules'
 
 interface RowElem {
   x: number
@@ -56,10 +60,7 @@ function buildRow(
     }
     nextIsHeader = false
   } else {
-    const startCloser = Math.round((brickL - queenCloser) / 2)
-    const w = Math.min(startCloser, wallL)
-    adjPieceLength = Math.max(adjPieceLength, w)
-    x = appendPiece(elems, x, w, dimensions, 'adj')
+    x = appendPiece(elems, x, Math.min(brickL, wallL), dimensions, 'full')
     if (wallL - x > mortar) x += mortar
     nextIsHeader = true
   }
@@ -71,8 +72,10 @@ function buildRow(
     if (remaining >= targetW) {
       x = appendPiece(elems, x, targetW, dimensions, nextIsHeader ? 'half' : 'full')
     } else {
-      adjPieceLength = Math.max(adjPieceLength, remaining)
-      x = appendPiece(elems, x, remaining, dimensions, 'adj')
+      if (remaining >= MIN_CUT_BRICK_DIMENSION) {
+        adjPieceLength = Math.max(adjPieceLength, remaining)
+        x = appendPiece(elems, x, remaining, dimensions, 'adj')
+      }
       break
     }
 
@@ -85,17 +88,37 @@ function buildRow(
   return { elems, renderedL: last ? last.x + last.w : 0, adjPieceLength }
 }
 
+function snapWallLengthForFlemish(wallL: number, dimensions: BrickDimensions): number {
+  const searchLimit = Math.max(
+    2000,
+    (dimensions.length + dimensions.mortar) * 8,
+    (dimensions.width + dimensions.mortar) * 12,
+  )
+
+  for (let offset = 0; offset <= searchLimit; offset++) {
+    const candidateWallL = wallL + offset
+    const headerStart = buildRow(candidateWallL, dimensions, true)
+    const fullStart = buildRow(candidateWallL, dimensions, false)
+    const rows = [headerStart, fullStart]
+    const hasInvalidCut = rows.some((row) => hasInvalidCutBrick(row))
+    const hasTailGap = rows.some((row) => row.renderedL !== candidateWallL)
+
+    if (!hasInvalidCut && !hasTailGap) {
+      return candidateWallL
+    }
+  }
+
+  return wallL
+}
+
 function generate({ wallL, wallH, brickDimensions }: BondParams): BondResult {
   const dimensions = brickDimensions ?? DEFAULT_BRICK_DIMENSIONS
   const courseH = dimensions.height + dimensions.mortar
   const nRows = Math.ceil((wallH + dimensions.mortar) / courseH)
   const wallPixH = nRows * courseH - dimensions.mortar
-  const targetWallL = snapWallLengthForCutRule(wallL, dimensions, (candidateWallL) => [
-    buildRow(candidateWallL, dimensions, true),
-    buildRow(candidateWallL, dimensions, false),
-  ])
-  const odd = buildRow(targetWallL, dimensions, true)
-  const even = buildRow(targetWallL, dimensions, false)
+  const targetWallL = snapWallLengthForFlemish(wallL, dimensions)
+  const odd = buildRow(targetWallL, dimensions, false)
+  const even = buildRow(targetWallL, dimensions, true)
 
   const bricks: BrickData[] = []
   let brickCount = 0

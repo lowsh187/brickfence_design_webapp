@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
 import type { Payload } from 'payload'
 
 import {
@@ -5,6 +8,12 @@ import {
   formatPriceWithUnit,
   isPricingKey,
 } from './pricing'
+import {
+  isSafeAIPriceParse,
+  parseSupplierPriceWithAI,
+} from './supplierPriceAI'
+
+const execFileAsync = promisify(execFile)
 
 export type SupplierPriceSourceDoc = {
   id: number | string
@@ -12,6 +21,9 @@ export type SupplierPriceSourceDoc = {
   pricingKey?: string | null
   productUrl?: string | null
   unit?: string | null
+  unitQuantity?: number | null
+  customUnit?: string | null
+  bagWeightKg?: number | null
   isEnabled?: boolean | null
   includesGST?: boolean | null
   lastPrice?: number | null
@@ -19,10 +31,12 @@ export type SupplierPriceSourceDoc = {
 }
 
 type ScrapedPrice = {
+  bagWeightKg?: number
   title: string
   unitPrice: number
   currency: string
   unit?: string
+  unitQuantity?: number
 }
 
 function getFinalPriceDisplay(params: {
@@ -126,13 +140,32 @@ export function deriveSupplierNameFromUrl(url: string | null | undefined): strin
 export function normalizeSupplierUnitPrice(params: {
   pricingKey: string | null | undefined
   unit: string | null | undefined
+  unitQuantity?: number | null
   unitPrice: number
 }): number {
   if (params.pricingKey === 'standard_brick' && params.unit === 'per_1000') {
     return params.unitPrice / 1000
   }
 
+  if (params.pricingKey === 'standard_brick' && params.unit === 'per_quantity') {
+    const quantity =
+      typeof params.unitQuantity === 'number' &&
+      Number.isFinite(params.unitQuantity) &&
+      params.unitQuantity > 0
+        ? params.unitQuantity
+        : 1
+
+    return params.unitPrice / quantity
+  }
+
   return params.unitPrice
+}
+
+function resolveUnitForDisplay(
+  unit: string | null | undefined,
+  customUnit: string | null | undefined,
+): string | null | undefined {
+  return unit === 'custom' ? customUnit || unit : unit
 }
 
 export function getRelationshipID(
@@ -159,6 +192,36 @@ function extractTitle(html: string): string {
 
   const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)
   return title?.[1]?.trim() || 'Supplier product page'
+}
+
+function getSupplierFetchUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (
+      (hostname === 'australbricks.com.au' ||
+        hostname.endsWith('.australbricks.com.au') ||
+        hostname === 'brickworks.com.au' ||
+        hostname.endsWith('.brickworks.com.au')) &&
+      !parsed.searchParams.has('change_state')
+    ) {
+      const state = parsed.pathname
+        .split('/')
+        .filter(Boolean)[0]
+        ?.toUpperCase()
+      const knownStates = new Set(['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
+
+      if (state && knownStates.has(state)) {
+        parsed.searchParams.set('change_state', state)
+        return parsed.toString()
+      }
+    }
+  } catch {
+    return url
+  }
+
+  return url
 }
 
 function extractJsonLdPrices(html: string): number[] {
@@ -206,28 +269,135 @@ function extractTextPrices(text: string): number[] {
   return prices
 }
 
-function inferUnitFromText(text: string): string | undefined {
-  const normalized = text.toLowerCase()
+function parseQuantityValue(value: string | null | undefined): number | undefined {
+  if (!value) return undefined
 
-  if (/\bper\s*1000\b|\b1000\s*(bricks|brick|units|pcs)\b/.test(normalized)) {
-    return 'per_1000'
+  const quantity = Number.parseInt(value.replace(/,/g, ''), 10)
+  return Number.isFinite(quantity) && quantity > 1 ? quantity : undefined
+}
+
+function inferUnitFromUnitText(value: string): {
+  unit?: string
+  unitQuantity?: number
+} {
+  const normalized = stripHtml(value).toLowerCase()
+  const quantityMatch = normalized.match(
+    /\b(?:per|\/)\s*(\d{1,3}(?:,\d{3})+|\d{2,5})\b|\b(\d{1,3}(?:,\d{3})+|\d{2,5})\s*(?:bricks|brick|units|unit|pcs|pieces)\b/,
+  )
+  const unitQuantity = parseQuantityValue(quantityMatch?.[1] ?? quantityMatch?.[2])
+
+  if (unitQuantity) {
+    return {
+      unit: 'per_quantity',
+      unitQuantity,
+    }
   }
 
-  if (/\b20\s*kg\b/.test(normalized)) return '20kg_bag'
-  if (/\bm3\b|cubic\s*met(re|er)/.test(normalized)) return 'm3'
-  if (/\bm2\b|square\s*met(re|er)/.test(normalized)) return 'm2'
-  if (/\bper\s*(metre|meter)\b|\bm\b/.test(normalized)) return 'm'
-  if (/\beach\b|\bper\s*(brick|unit|piece|pc)\b/.test(normalized)) return 'each'
+  if (/\b\d+(?:\.\d+)?\s*kg\b/.test(normalized) && /\bbag\b/.test(normalized)) {
+    return { unit: 'per_bag' }
+  }
+  if (/\bm3\b|cubic\s*met(re|er)/.test(normalized)) return { unit: 'm3' }
+  if (/\bm2\b|square\s*met(re|er)/.test(normalized)) return { unit: 'm2' }
+  if (/\bper\s*(metre|meter)\b|\bm\b/.test(normalized)) return { unit: 'm' }
+  if (/\beach\b|\bper\s*(brick|unit|piece|pc)\b/.test(normalized)) return { unit: 'each' }
+
+  return {}
+}
+
+function inferUnitFromText(text: string): {
+  unit?: string
+  unitQuantity?: number
+} {
+  return inferUnitFromUnitText(text)
+}
+
+function extractStructuredPrice(html: string):
+  | {
+      unitPrice: number
+      unit?: string
+      unitQuantity?: number
+    }
+  | undefined {
+  const priceAmountMatches = html.matchAll(
+    /data-price-amount=["']?([0-9][0-9,]*(?:\.[0-9]+)?)["']?[\s\S]{0,1200}/gi,
+  )
+
+  for (const match of priceAmountMatches) {
+    const unitPrice = Number.parseFloat(match[1].replace(/,/g, ''))
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue
+
+    const context = match[0]
+    const uomMatch =
+      context.match(/class=["'][^"']*\buom\b[^"']*["'][^>]*>([^<]+)</i) ??
+      context.match(/data-th=["']UOM["'][^>]*>([^<]+)</i) ??
+      context.match(/(?:uom|unit\s*of\s*measure)[^<]{0,80}<[^>]*>([^<]+)</i)
+    const unitInfo = uomMatch?.[1] ? inferUnitFromUnitText(uomMatch[1]) : {}
+
+    if (unitInfo.unit) {
+      return {
+        unitPrice,
+        ...unitInfo,
+      }
+    }
+
+    const contextUnitInfo = inferUnitFromUnitText(context)
+    return {
+      unitPrice,
+      ...contextUnitInfo,
+    }
+  }
 
   return undefined
 }
 
-export async function scrapeSupplierPrice(url: string): Promise<ScrapedPrice> {
+function extractPriceContextSnippet(html: string, text: string): string {
+  const snippets: string[] = []
+  const htmlPatterns = [
+    /data-price-amount=["']?([0-9][0-9,]*(?:\.[0-9]+)?)["']?[\s\S]{0,500}/gi,
+    /\$\s*[0-9]{1,4}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?[\s\S]{0,500}/g,
+    /class=["'][^"']*(?:uom|price)[^"']*["'][\s\S]{0,500}/gi,
+  ]
+
+  for (const pattern of htmlPatterns) {
+    for (const match of html.matchAll(pattern)) {
+      if (match[0]) snippets.push(match[0])
+      if (snippets.length >= 8) break
+    }
+    if (snippets.length >= 8) break
+  }
+
+  if (snippets.length === 0) {
+    const priceMatch = text.match(/\$\s*[0-9]{1,4}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/)
+    const index = priceMatch?.index ?? 0
+    snippets.push(text.slice(Math.max(0, index - 500), index + 1500))
+  }
+
+  return snippets
+    .join('\n---\n')
+    .replace(/\s+/g, ' ')
+    .slice(0, 6000)
+}
+
+function shouldUseAIPriceFallback(params: {
+  pricingKey?: string | null
+  unit?: string
+  unitPrice: number
+}): boolean {
+  if (!params.unit) return true
+
+  return (
+    params.pricingKey === 'standard_brick' &&
+    params.unit === 'each' &&
+    params.unitPrice > 20
+  )
+}
+
+async function fetchSupplierHtml(url: string): Promise<string> {
   const response = await fetch(url, {
     headers: {
       accept: 'text/html,application/xhtml+xml',
       'user-agent':
-        'FenceCostCalculator/1.0 (+https://example.local; pricing research)',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
     },
   })
 
@@ -235,22 +405,139 @@ export async function scrapeSupplierPrice(url: string): Promise<ScrapedPrice> {
     throw new Error(`Supplier page returned HTTP ${response.status}`)
   }
 
-  const html = await response.text()
+  return response.text()
+}
+
+async function fetchSupplierHtmlWithPowerShell(url: string): Promise<string | undefined> {
+  if (process.platform !== 'win32') return undefined
+
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        [
+          "$ProgressPreference = 'SilentlyContinue'",
+          "$headers = @{ 'User-Agent' = 'Mozilla/5.0'; 'Accept' = 'text/html,application/xhtml+xml' }",
+          '(Invoke-WebRequest -Uri $env:SUPPLIER_FETCH_URL -Headers $headers -UseBasicParsing).Content',
+        ].join('; '),
+      ],
+      {
+        env: {
+          ...process.env,
+          SUPPLIER_FETCH_URL: url,
+        },
+        maxBuffer: 12 * 1024 * 1024,
+        timeout: 30000,
+      },
+    )
+
+    return stdout
+  } catch {
+    return undefined
+  }
+}
+
+function getPriceCandidateFromHtml(html: string): {
+  structuredPrice?: ReturnType<typeof extractStructuredPrice>
+  text: string
+  title: string
+  unitPrice?: number
+} {
   const title = extractTitle(html)
   const text = stripHtml(html)
-  const prices = [...extractJsonLdPrices(html), ...extractTextPrices(text)]
+  const structuredPrice = extractStructuredPrice(html)
+  const prices = structuredPrice
+    ? [structuredPrice.unitPrice]
+    : [...extractJsonLdPrices(html), ...extractTextPrices(text)]
   const uniquePrices = [...new Set(prices)].sort((a, b) => a - b)
-  const unitPrice = uniquePrices[0]
+
+  return {
+    structuredPrice,
+    text,
+    title,
+    unitPrice: uniquePrices[0],
+  }
+}
+
+export async function scrapeSupplierPrice(
+  url: string,
+  pricingKey?: string | null,
+): Promise<ScrapedPrice> {
+  const fetchUrl = getSupplierFetchUrl(url)
+  let html = await fetchSupplierHtml(fetchUrl)
+  let candidate = getPriceCandidateFromHtml(html)
+
+  if (!candidate.unitPrice) {
+    const fallbackHtml = await fetchSupplierHtmlWithPowerShell(fetchUrl)
+
+    if (fallbackHtml) {
+      const fallbackCandidate = getPriceCandidateFromHtml(fallbackHtml)
+
+      if (fallbackCandidate.unitPrice) {
+        html = fallbackHtml
+        candidate = fallbackCandidate
+      }
+    }
+  }
+
+  const { structuredPrice, text, title, unitPrice } = candidate
 
   if (!unitPrice) {
+    if (/\bPOA\b|price\s*on\s*application|price\s*on\s*request/i.test(text)) {
+      throw new Error(
+        'Supplier page returned POA instead of a numeric public price. Open the product page in a browser or enter this supplier price manually.',
+      )
+    }
+
     throw new Error('No public price could be parsed from this product page')
+  }
+
+  let unitInfo = structuredPrice?.unit
+    ? {
+        unit: structuredPrice.unit,
+        unitQuantity: structuredPrice.unitQuantity,
+      }
+    : inferUnitFromText(text)
+  let resolvedUnitPrice = unitPrice
+  let bagWeightKg: number | undefined
+
+  if (
+    shouldUseAIPriceFallback({
+      pricingKey,
+      unit: unitInfo.unit,
+      unitPrice,
+    })
+  ) {
+    try {
+      const aiParsed = await parseSupplierPriceWithAI({
+        pricingKey,
+        textSnippet: extractPriceContextSnippet(html, text),
+        url: fetchUrl,
+      })
+
+      if (isSafeAIPriceParse(aiParsed, pricingKey)) {
+        resolvedUnitPrice = aiParsed.price
+        unitInfo = {
+          unit: aiParsed.unit,
+          unitQuantity: aiParsed.unitQuantity ?? undefined,
+        }
+        bagWeightKg = aiParsed.bagWeightKg ?? undefined
+      }
+    } catch {
+      // Keep the deterministic parse result when the optional AI fallback is unavailable.
+    }
   }
 
   return {
     title,
-    unitPrice,
+    unitPrice: resolvedUnitPrice,
     currency: 'AUD',
-    unit: inferUnitFromText(text),
+    unit: unitInfo.unit,
+    unitQuantity: unitInfo.unitQuantity,
+    bagWeightKg,
   }
 }
 
@@ -272,6 +559,7 @@ export async function recomputeSupplierAverages(payload: Payload) {
   for (const source of sourceResult.docs as Array<{
     pricingKey?: string | null
     unit?: string | null
+    unitQuantity?: number | null
     lastPrice?: number | null
   }>) {
     if (!isPricingKey(source.pricingKey) || typeof source.lastPrice !== 'number') continue
@@ -280,6 +568,7 @@ export async function recomputeSupplierAverages(payload: Payload) {
         normalizeSupplierUnitPrice({
           pricingKey: source.pricingKey,
           unit: source.unit,
+          unitQuantity: source.unitQuantity,
           unitPrice: source.lastPrice,
         }),
       )
@@ -307,6 +596,9 @@ export async function recomputeSupplierAverages(payload: Payload) {
           priceSource?: string | null
           selectedSupplierUnitPrice?: number | null
           unit?: string | null
+          unitQuantity?: number | null
+          customUnit?: string | null
+          bagWeightKg?: number | null
           selectedSupplierPriceSource?:
             | number
             | string
@@ -337,11 +629,12 @@ export async function recomputeSupplierAverages(payload: Payload) {
           selectedSupplierPrice = normalizeSupplierUnitPrice({
             pricingKey,
             unit: source.unit,
+            unitQuantity: source.unitQuantity,
             unitPrice: source.lastPrice,
           })
           selectedSupplierPriceDisplay = formatPriceWithUnit(
             source.lastPrice,
-            source.unit,
+            resolveUnitForDisplay(source.unit, source.customUnit),
           )
           selectedSupplierName = source.supplierName || ''
         }
@@ -353,10 +646,16 @@ export async function recomputeSupplierAverages(payload: Payload) {
     }
 
     const averagePrice = Number(average.toFixed(2))
-    const averagePriceDisplay = formatPriceWithUnit(averagePrice, existing?.unit)
+    const displayUnit = resolveUnitForDisplay(existing?.unit, existing?.customUnit)
+    const averagePriceDisplay = formatPriceWithUnit(
+      averagePrice,
+      displayUnit,
+      existing?.unitQuantity,
+    )
     const manualPriceDisplay = formatPriceWithUnit(
       existing?.manualUnitPrice,
-      existing?.unit,
+      displayUnit,
+      existing?.unitQuantity,
     )
     const effectiveUnitPrice =
       existing?.priceSource === 'supplier'
@@ -384,7 +683,8 @@ export async function recomputeSupplierAverages(payload: Payload) {
           effectiveUnitPrice,
           effectiveUnitPriceDisplay: formatPriceWithUnit(
             effectiveUnitPrice,
-            existing.unit,
+            displayUnit,
+            existing.unitQuantity,
           ),
           finalPriceDisplay: getFinalPriceDisplay({
             priceSource: existing.priceSource,

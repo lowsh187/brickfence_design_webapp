@@ -21,6 +21,7 @@ import CostPage from './screens/CostPage'
 
 function PersistentPreview() {
   const { t } = useTranslation()
+  const pathname = usePathname()
   const { state } = useFormContext()
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewZoom, setPreviewZoom] = useState(1)
@@ -31,13 +32,29 @@ function PersistentPreview() {
   const pierHeight = parseFloat(state.pierHeight) || 0
   const pierSpacing = parseFloat(state.pierSpacing) || 0
   const brickDimensions = brickDimensionsFromStrings(state)
-  const brickDimensionsValid = validateBrickDimensions(brickDimensions)
-  const spacingTooWide = state.pierType !== 'none' && pierSpacing > 3
-  const showDiagram = length > 0 && height > 0 && height <= 3 && !spacingTooWide && brickDimensionsValid
+  const brickDimensionsValid =
+    state.brickSizeMode === 'standard' ||
+    (state.brickSizeMode === 'custom' &&
+      state.brickLength !== '' &&
+      state.brickWidth !== '' &&
+      state.brickHeight !== '' &&
+      state.mortarJoint !== '' &&
+      validateBrickDimensions(brickDimensions))
+  const previewPierType = state.pierType || 'none'
+  const previewTimberFence = state.timberFence || 'none'
+  const spacingTooWide = previewPierType !== 'none' && pierSpacing > 3
+  const hasPreviewBond = pathname !== '/dimensions' && !!state.bondPattern && !!state.cutBricks
+  const showDiagram =
+    length > 0 &&
+    height > 0 &&
+    height <= 3 &&
+    !spacingTooWide &&
+    brickDimensionsValid &&
+    hasPreviewBond
   const selectionSummary = [
-    state.bondPattern ? t(`bond.${state.bondPattern}`) : null,
-    state.cutBricks ? t(`cutBricks.options.${state.cutBricks}`) : null,
-    state.pierType ? t(`pier.types.${state.pierType}`) : null,
+    hasPreviewBond ? t(`bond.${state.bondPattern}`) : null,
+    hasPreviewBond ? t(`cutBricks.options.${state.cutBricks}`) : null,
+    hasPreviewBond && state.pierType ? t(`pier.types.${previewPierType}`) : null,
   ].filter(Boolean).join(' · ')
 
   useEffect(() => {
@@ -89,12 +106,12 @@ function PersistentPreview() {
                 lengthM={length}
                 heightM={height}
                 bondPattern={state.bondPattern}
-                pierType={state.pierType}
-                pierSize={state.pierSize}
+                pierType={previewPierType}
+                pierSize={state.pierSize || undefined}
                 pierHeightM={pierHeight}
                 pierSpacingM={pierSpacing}
-                cutBricks={state.cutBricks}
-                timberFence={state.timberFence}
+                cutBricks={state.cutBricks || undefined}
+                timberFence={previewTimberFence}
                 brickDimensions={brickDimensions}
               />
             </div>
@@ -176,12 +193,12 @@ function PersistentPreview() {
                     lengthM={length}
                     heightM={height}
                     bondPattern={state.bondPattern}
-                    pierType={state.pierType}
-                    pierSize={state.pierSize}
+                    pierType={previewPierType}
+                    pierSize={state.pierSize || undefined}
                     pierHeightM={pierHeight}
                     pierSpacingM={pierSpacing}
-                    cutBricks={state.cutBricks}
-                    timberFence={state.timberFence}
+                    cutBricks={state.cutBricks || undefined}
+                    timberFence={previewTimberFence}
                     brickDimensions={brickDimensions}
                   />
                 </div>

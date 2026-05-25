@@ -10,6 +10,8 @@ type SupplierSource = {
   lastPriceDisplay?: string | null
   lastStatus?: string | null
   unit?: string | null
+  unitQuantity?: number | null
+  customUnit?: string | null
 }
 
 function formatPricingUnit(unit: string | null | undefined): string {
@@ -18,6 +20,10 @@ function formatPricingUnit(unit: string | null | undefined): string {
       return 'each'
     case 'per_1000':
       return 'per 1000'
+    case 'per_quantity':
+      return 'per quantity'
+    case 'per_brick':
+      return 'per brick'
     case 'm3':
       return 'per cubic metre'
     case 'm2':
@@ -26,6 +32,10 @@ function formatPricingUnit(unit: string | null | undefined): string {
       return 'per metre'
     case '20kg_bag':
       return 'per 20kg bag'
+    case 'per_bag':
+      return 'per bag'
+    case 'custom':
+      return 'custom unit'
     default:
       return unit || ''
   }
@@ -34,9 +44,18 @@ function formatPricingUnit(unit: string | null | undefined): string {
 function formatPriceWithUnit(
   price: unknown,
   unit: string | null | undefined,
+  unitQuantity?: unknown,
 ): string {
   if (typeof price !== 'number' || !Number.isFinite(price)) return ''
-  return `${price} ${formatPricingUnit(unit)}`.trim()
+  const unitLabel =
+    unit === 'per_quantity' &&
+    typeof unitQuantity === 'number' &&
+    Number.isFinite(unitQuantity) &&
+    unitQuantity > 0
+      ? `per ${unitQuantity}`
+      : formatPricingUnit(unit)
+
+  return `${price} ${unitLabel}`.trim()
 }
 
 function getRelationshipID(
@@ -58,10 +77,12 @@ export function PricingLiveFinalPriceField() {
 
   const formValues = useFormFields(([fields]) => ({
     autoAverageUnitPrice: fields.autoAverageUnitPrice?.value,
+    customUnit: fields.customUnit?.value,
     manualUnitPrice: fields.manualUnitPrice?.value,
     priceSource: fields.priceSource?.value,
     selectedSupplierPriceSource: fields.selectedSupplierPriceSource?.value,
     unit: fields.unit?.value,
+    unitQuantity: fields.unitQuantity?.value,
   }))
 
   const selectedSupplierID = getRelationshipID(
@@ -104,13 +125,19 @@ export function PricingLiveFinalPriceField() {
   }, [formValues.priceSource, selectedSupplierID])
 
   const display = useMemo(() => {
+    const unit =
+      formValues.unit === 'custom'
+        ? formValues.customUnit as string | null | undefined
+        : formValues.unit as string | null | undefined
     const averageDisplay = formatPriceWithUnit(
       formValues.autoAverageUnitPrice,
-      formValues.unit as string | null | undefined,
+      unit,
+      formValues.unitQuantity,
     )
     const manualDisplay = formatPriceWithUnit(
       formValues.manualUnitPrice,
-      formValues.unit as string | null | undefined,
+      unit,
+      formValues.unitQuantity,
     )
     const supplierDisplay =
       supplierSource?.lastPriceDisplay ||
@@ -127,9 +154,11 @@ export function PricingLiveFinalPriceField() {
     return manualDisplay || averageDisplay || 'No data'
   }, [
     formValues.autoAverageUnitPrice,
+    formValues.customUnit,
     formValues.manualUnitPrice,
     formValues.priceSource,
     formValues.unit,
+    formValues.unitQuantity,
     supplierSource?.lastPrice,
     supplierSource?.lastPriceDisplay,
     supplierSource?.unit,
@@ -147,7 +176,13 @@ export function PricingLiveFinalPriceField() {
 
   const selectedSupplierDisplay =
     supplierSource?.lastPriceDisplay ||
-    formatPriceWithUnit(supplierSource?.lastPrice, supplierSource?.unit)
+    formatPriceWithUnit(
+      supplierSource?.lastPrice,
+      supplierSource?.unit === 'custom'
+        ? supplierSource?.customUnit
+        : supplierSource?.unit,
+      supplierSource?.unitQuantity,
+    )
 
   useEffect(() => {
     setValue(display, true)
