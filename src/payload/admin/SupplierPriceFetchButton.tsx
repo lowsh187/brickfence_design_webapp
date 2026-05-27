@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react'
 
+import { readJsonResponse } from '../../http'
+
 type SupplierPriceFetchButtonProps = {
   mode?: 'all' | 'current'
 }
 
 type FetchResult = {
+  error?: string
   fetched?: number
   results?: Array<{
     source?: string | null
@@ -49,7 +52,10 @@ export function SupplierPriceFetchButton({
         const response = await fetch(
           `/api/supplier-price-sources/${sourceID}?depth=0`,
         )
-        const data = (await response.json()) as { productUrl?: string | null }
+        const data = await readJsonResponse<{ productUrl?: string | null }>(
+          response,
+          {},
+        )
         setIsManualSource(!data.productUrl)
       } catch {
         setIsManualSource(false)
@@ -86,10 +92,14 @@ export function SupplierPriceFetchButton({
         },
       )
 
-      const data = (await response.json()) as FetchResult
+      const data = await readJsonResponse<FetchResult>(response, {})
 
       if (!response.ok) {
-        throw new Error('Price update failed.')
+        throw new Error(
+          'error' in data && typeof data.error === 'string'
+            ? data.error
+            : 'Price update failed.',
+        )
       }
 
       const successCount =

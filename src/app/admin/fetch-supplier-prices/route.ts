@@ -1,7 +1,7 @@
-import config from '@payload-config'
 import { NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 
+import config from '../../../../payload.config'
 import {
   defaultUnitForPricingKey,
   formatPriceWithUnit,
@@ -12,6 +12,20 @@ import {
   recomputeSupplierAverages,
   scrapeSupplierPrice,
 } from '../../../supplierPricing'
+import {
+  createFixedWindowRateLimiter,
+  getClientRateLimitKey,
+  isAllowedSameOriginRequest,
+} from '../../../security'
+
+const checkFetchSupplierPricesRateLimit = createFixedWindowRateLimiter({
+  limit: 5,
+  windowMs: 60_000,
+})
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status })
+}
 
 async function fetchAndStoreSupplierPrice(
   payload: Awaited<ReturnType<typeof getPayload>>,
@@ -104,6 +118,23 @@ async function fetchAndStoreSupplierPrice(
 
 export async function POST(request: Request) {
   const payload = await getPayload({ config })
+  const auth = await payload.auth({ headers: request.headers })
+
+  if (!auth.user || auth.user.collection !== 'admins') {
+    return jsonError('Unauthorized', 401)
+  }
+
+  if (!isAllowedSameOriginRequest(request)) {
+    return jsonError('Cross-origin price update requests are not allowed.', 403)
+  }
+
+  const rateLimit = checkFetchSupplierPricesRateLimit(
+    getClientRateLimitKey(request, auth.user.id),
+  )
+  if (!rateLimit.allowed) {
+    return jsonError('Too many supplier price update requests. Try again later.', 429)
+  }
+
   const sourceId = new URL(request.url).searchParams.get('sourceId')
   const results = []
 

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useField, useFormFields } from '@payloadcms/ui'
 
+import { readJsonResponse } from '../../http'
+
 type SupplierSource = {
   id?: number | string
   supplierName?: string | null
@@ -110,7 +112,7 @@ export function PricingLiveFinalPriceField() {
 
         if (!response.ok) throw new Error('Unable to load supplier source')
 
-        const data = (await response.json()) as SupplierSource
+        const data = await readJsonResponse<SupplierSource>(response, {})
         if (isActive) setSupplierSource(data)
       } catch {
         if (isActive) setSupplierSource(null)

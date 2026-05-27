@@ -12,8 +12,12 @@ import {
   isSafeAIPriceParse,
   parseSupplierPriceWithAI,
 } from './supplierPriceAI'
+import { assertSafeSupplierUrl } from './security'
 
 const execFileAsync = promisify(execFile)
+const SUPPLIER_FETCH_TIMEOUT_MS = 15000
+const SUPPLIER_FETCH_MAX_BYTES = 2 * 1024 * 1024
+const SUPPLIER_FETCH_MAX_REDIRECTS = 3
 
 export type SupplierPriceSourceDoc = {
   id: number | string
@@ -392,26 +396,60 @@ function shouldUseAIPriceFallback(params: {
   )
 }
 
-async function fetchSupplierHtml(url: string): Promise<string> {
-  const response = await fetch(url, {
+async function responseToLimitedText(response: Response): Promise<string> {
+  const contentLength = Number.parseInt(response.headers.get('content-length') ?? '', 10)
+  if (Number.isFinite(contentLength) && contentLength > SUPPLIER_FETCH_MAX_BYTES) {
+    throw new Error('Supplier page is too large to parse safely.')
+  }
+
+  const text = await response.text()
+  if (new TextEncoder().encode(text).byteLength > SUPPLIER_FETCH_MAX_BYTES) {
+    throw new Error('Supplier page is too large to parse safely.')
+  }
+
+  return text
+}
+
+async function fetchSupplierHtml(
+  url: string,
+  redirectCount = 0,
+): Promise<string> {
+  const safeUrl = await assertSafeSupplierUrl(url)
+  const response = await fetch(safeUrl, {
     headers: {
       accept: 'text/html,application/xhtml+xml',
       'user-agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
     },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(SUPPLIER_FETCH_TIMEOUT_MS),
   })
+
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    if (redirectCount >= SUPPLIER_FETCH_MAX_REDIRECTS) {
+      throw new Error('Supplier page returned too many redirects.')
+    }
+
+    const location = response.headers.get('location')
+    if (!location) {
+      throw new Error('Supplier page redirected without a location.')
+    }
+
+    return fetchSupplierHtml(new URL(location, safeUrl).toString(), redirectCount + 1)
+  }
 
   if (!response.ok) {
     throw new Error(`Supplier page returned HTTP ${response.status}`)
   }
 
-  return response.text()
+  return responseToLimitedText(response)
 }
 
 async function fetchSupplierHtmlWithPowerShell(url: string): Promise<string | undefined> {
   if (process.platform !== 'win32') return undefined
 
   try {
+    await assertSafeSupplierUrl(url)
     const { stdout } = await execFileAsync(
       'powershell.exe',
       [
@@ -429,10 +467,14 @@ async function fetchSupplierHtmlWithPowerShell(url: string): Promise<string | un
           ...process.env,
           SUPPLIER_FETCH_URL: url,
         },
-        maxBuffer: 12 * 1024 * 1024,
-        timeout: 30000,
+        maxBuffer: SUPPLIER_FETCH_MAX_BYTES,
+        timeout: SUPPLIER_FETCH_TIMEOUT_MS,
       },
     )
+
+    if (new TextEncoder().encode(stdout).byteLength > SUPPLIER_FETCH_MAX_BYTES) {
+      return undefined
+    }
 
     return stdout
   } catch {

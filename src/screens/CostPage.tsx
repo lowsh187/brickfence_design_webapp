@@ -19,6 +19,7 @@ import {
   validateBrickDimensions,
   type BrickDimensions,
 } from '../bonds/brickDimensions'
+import { readJsonResponse } from '../http'
 
 const PIER_EXTRA_HEIGHT_MM = 180
 const MAX_PIER_SPACING_MM = 3000
@@ -713,7 +714,12 @@ export default function CostPage() {
     let cancelled = false
 
     fetch('/pricing-data', { cache: 'no-store' })
-      .then((response) => response.json())
+      .then((response) =>
+        readJsonResponse<{ prices?: PricingMap; source?: 'cms' | 'default' }>(
+          response,
+          {},
+        ),
+      )
       .then((data: { prices?: PricingMap; source?: 'cms' | 'default' }) => {
         if (cancelled) return
         if (data.prices) setPrices(data.prices)
