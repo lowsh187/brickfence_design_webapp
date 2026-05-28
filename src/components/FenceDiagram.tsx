@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { Stage, Layer, Rect, Group, Line } from 'react-konva'
+import { Stage, Layer, Rect, Group, Line, Path } from 'react-konva'
 import { getBond } from '../bonds/registry'
 import type { BrickData } from '../bonds/types'
 import { DEFAULT_BRICK_DIMENSIONS, type BrickDimensions } from '../bonds/brickDimensions'
@@ -14,7 +14,9 @@ const MIN_INFILL_CLEARANCE_MM = 120
 const INFILL_BOTTOM_GAP_MM = 32
 const INFILL_TOP_GAP_MM = 28
 const INFILL_SLAT_HEIGHT_MM = 42
-const INFILL_SLAT_GAP_MM = 28
+const INFILL_SLAT_GAP_MM = 25
+const TIMBER_VERTICAL_PALING_WIDTH_MM = 70
+const TIMBER_VERTICAL_PALING_GAP_MM = 60
 const MAX_PIER_SPACING_MM = 3000
 const MORTAR_FILL = '#c9b89a'
 const ADJ_FILL = '#d49050'
@@ -50,6 +52,7 @@ interface FenceDiagramProps {
   pierSpacingM?: number
   cutBricks?: string
   timberFence?: string
+  timberFenceStyle?: string
   brickDimensions?: BrickDimensions
 }
 
@@ -374,6 +377,7 @@ export default function FenceDiagram({
   pierSpacingM,
   cutBricks,
   timberFence,
+  timberFenceStyle,
   brickDimensions,
 }: FenceDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -412,6 +416,7 @@ export default function FenceDiagram({
       : requestedPierSize
   const cutBricksSafe = cutBricks ?? 'allowed'
   const timberFenceSafe = timberFence ?? 'none'
+  const timberFenceStyleSafe = timberFenceStyle ?? 'rails'
   const bond = getBond(bondPatternSafe) ?? getBond('stretcher')
   const pierSpecs = useMemo(
     () => buildPierSpecs(dimensions, bondPatternSafe),
@@ -1064,6 +1069,7 @@ export default function FenceDiagram({
             ))}
 
             {timberFenceSafe === 'timber' &&
+              timberFenceStyleSafe === 'rails' &&
               clippedRails.map((rail, i) => {
                 const x1 = (rail.x1 - startX) * scale
                 const x2 = (rail.x2 - startX) * scale
@@ -1107,6 +1113,86 @@ export default function FenceDiagram({
                             width={Math.max(0, panelW - frameW * 1.2)}
                             height={Math.min(slatH * 0.28, 5 * scale)}
                             fill="rgba(255,220,160,0.22)"
+                            listening={false}
+                          />
+                        </Group>
+                      )
+                    })}
+                  </Group>
+                )
+              })}
+            {timberFenceSafe === 'timber' &&
+              timberFenceStyleSafe === 'verticalPalings' &&
+              clippedRails.map((rail, i) => {
+                const x1 = (rail.x1 - startX) * scale
+                const x2 = (rail.x2 - startX) * scale
+                const panelW = Math.max(0, x2 - x1)
+                const panelH = Math.max(40 * scale, wallTopY - infillTopY)
+                const palingW = Math.max(7, scale * TIMBER_VERTICAL_PALING_WIDTH_MM)
+                const palingGap = Math.max(1, scale * TIMBER_VERTICAL_PALING_GAP_MM)
+                const stride = palingW + palingGap
+                const palingCount = Math.max(1, Math.floor((panelW + palingGap) / stride))
+                const usedW = palingCount * palingW + Math.max(0, palingCount - 1) * palingGap
+                const offsetX = x1 + Math.max(0, (panelW - usedW) / 2)
+                const headH = Math.min(panelH * 0.24, Math.max(18, scale * 80))
+                const notchY = infillTopY + headH * 0.62
+
+                return (
+                  <Group key={`timber-paling-${i}`}>
+                    {Array.from({ length: palingCount }, (_, palingIndex) => {
+                      const x = offsetX + palingIndex * stride
+                      const bodyTop = infillTopY + headH
+                      const bodyH = Math.max(0, panelH - headH)
+                      const fill = timberSlatFill(palingIndex)
+                      const headPath = [
+                        `M ${x} ${bodyTop}`,
+                        `L ${x} ${notchY}`,
+                        `L ${x + palingW * 0.22} ${notchY}`,
+                        `Q ${x + palingW * 0.28} ${infillTopY + headH * 0.25} ${x + palingW * 0.5} ${infillTopY}`,
+                        `Q ${x + palingW * 0.72} ${infillTopY + headH * 0.25} ${x + palingW * 0.78} ${notchY}`,
+                        `L ${x + palingW} ${notchY}`,
+                        `L ${x + palingW} ${bodyTop}`,
+                        'Z',
+                      ].join(' ')
+
+                      return (
+                        <Group key={`paling-${i}-${palingIndex}`}>
+                          <Path
+                            data={headPath}
+                            fill={adjustBrightness(fill, 0.22)}
+                            stroke="#8a7a4a"
+                            strokeWidth={Math.max(0.6, scale * 0.45)}
+                          />
+                          <Rect
+                            x={x}
+                            y={bodyTop}
+                            width={palingW}
+                            height={bodyH}
+                            fill={fill}
+                            stroke="#8a7a4a"
+                            strokeWidth={Math.max(0.6, scale * 0.45)}
+                            cornerRadius={Math.max(0.5, scale * 0.8)}
+                          />
+                          <Line
+                            points={[
+                              x + palingW * 0.34,
+                              bodyTop + 4 * scale,
+                              x + palingW * 0.26,
+                              bodyTop + bodyH * 0.92,
+                            ]}
+                            stroke="rgba(255,235,165,0.22)"
+                            strokeWidth={Math.max(0.6, scale * 0.5)}
+                            listening={false}
+                          />
+                          <Line
+                            points={[
+                              x + palingW * 0.72,
+                              bodyTop + bodyH * 0.08,
+                              x + palingW * 0.62,
+                              bodyTop + bodyH * 0.95,
+                            ]}
+                            stroke="rgba(78,56,28,0.16)"
+                            strokeWidth={Math.max(0.5, scale * 0.35)}
                             listening={false}
                           />
                         </Group>

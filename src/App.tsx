@@ -112,6 +112,7 @@ function PersistentPreview() {
                 pierSpacingM={pierSpacing}
                 cutBricks={state.cutBricks || undefined}
                 timberFence={previewTimberFence}
+                timberFenceStyle={state.timberFenceStyle || undefined}
                 brickDimensions={brickDimensions}
               />
             </div>
@@ -199,6 +200,7 @@ function PersistentPreview() {
                     pierSpacingM={pierSpacing}
                     cutBricks={state.cutBricks || undefined}
                     timberFence={previewTimberFence}
+                    timberFenceStyle={state.timberFenceStyle || undefined}
                     brickDimensions={brickDimensions}
                   />
                 </div>

@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { Admins } from './src/payload/collections/Admins'
 import { PricingItems } from './src/payload/collections/PricingItems'
 import { SupplierPriceSources } from './src/payload/collections/SupplierPriceSources'
+import { seedDefaultPricingItems } from './src/payload/seedDefaultPricing'
 
 function loadLocalEnv() {
   const envPath = resolve(process.cwd(), '.env.local')
@@ -52,5 +53,13 @@ export default buildConfig({
       connectionString: databaseUrl,
     },
   }),
+  onInit: async (payload) => {
+    try {
+      await seedDefaultPricingItems(payload)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      payload.logger.warn(`Default pricing seed skipped: ${message}`)
+    }
+  },
   secret: payloadSecret,
 })

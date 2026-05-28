@@ -16,6 +16,7 @@ interface SavedQuote {
   pierSpacing: string
   cutBricks: string
   timberFence: string
+  timberFenceStyle?: string
   brickSizeMode?: string
   brickLength?: string
   brickWidth?: string
@@ -28,7 +29,7 @@ interface SavedQuote {
 
 function getQuotes(): SavedQuote[] {
   try {
-    return JSON.parse(localStorage.getItem('fence-calculator-quotes') || '[]')
+    return JSON.parse(sessionStorage.getItem('fence-calculator-quotes') || '[]')
   } catch {
     return []
   }
@@ -37,7 +38,7 @@ function getQuotes(): SavedQuote[] {
 function deleteQuoteFromStorage(id: string) {
   try {
     const quotes = getQuotes().filter((q) => q.id !== id)
-    localStorage.setItem('fence-calculator-quotes', JSON.stringify(quotes))
+    sessionStorage.setItem('fence-calculator-quotes', JSON.stringify(quotes))
   } catch {
     // ignore
   }
@@ -97,6 +98,11 @@ function QuoteManagerDialog({ onClose }: Pick<QuoteManagerProps, 'onClose'>) {
       type: 'SET_FIELD',
       field: 'timberFence',
       value: quote.timberFence || 'none',
+    })
+    dispatch({
+      type: 'SET_FIELD',
+      field: 'timberFenceStyle',
+      value: quote.timberFenceStyle || '',
     })
     dispatch({
       type: 'SET_FIELD',

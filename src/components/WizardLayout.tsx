@@ -12,6 +12,7 @@ interface WizardLayoutProps {
   pierSpacingM?: number
   cutBricks?: string
   timberFence?: string
+  timberFenceStyle?: string
   brickDimensions?: BrickDimensions
   showDiagram: boolean
 }
@@ -27,6 +28,7 @@ export default function WizardLayout({
   pierSpacingM,
   cutBricks,
   timberFence,
+  timberFenceStyle,
   brickDimensions,
   showDiagram,
 }: WizardLayoutProps) {
@@ -39,6 +41,7 @@ export default function WizardLayout({
   void pierSpacingM
   void cutBricks
   void timberFence
+  void timberFenceStyle
   void brickDimensions
   void showDiagram
 

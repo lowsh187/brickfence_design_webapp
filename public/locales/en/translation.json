@@ -72,6 +72,7 @@
     "description": "Configure brick-built piers and the wall bays between them.",
     "timberFence": "Fence infill",
     "timberFenceHint": "Choose what to place between piers above the wall.",
+    "timberFenceStyle": "Timber visual style",
     "size": "Pier size",
     "height": "Pier height",
     "heightHint": "Set the overall pier height. Maximum pier height is {{max}}m.",
@@ -79,6 +80,8 @@
     "spacing": "Pier spacing",
     "spacingHint": "Centres are snapped in 0.24m brick modules and must stay at or below 3.0m.",
     "spacingError": "Pier spacing cannot exceed 3.0m centre-to-centre.",
+    "pvcHeightWarning": "PVC infill needs the pier to be at least {{reveal}}m higher than the wall. Increase pier height to at least {{minimum}}m to continue.",
+    "verticalTimberHeightWarning": "Vertical timber palings need the pier to be at least {{reveal}}m higher than the wall. Increase pier height to at least {{minimum}}m or switch to horizontal rails.",
     "hiddenSizeUnavailable": "Hidden piers for the current stack-bond model are only defined as 2 bricks x 1 brick or 2 bricks x 2 bricks.",
     "stackHiddenSizeUnavailable": "Hidden piers for the current stack-bond model are only defined as 2 bricks x 1 brick or 2 bricks x 2 bricks.",
     "stretcherHiddenSizeUnavailable": "Hidden piers for the current stretcher-bond model follow the workbook-defined pier sizes.",
@@ -115,6 +118,14 @@
       "none": "Only show the brick wall and piers.",
       "timber": "Draw two yellow rails between each pair of piers above the wall.",
       "pvc": "Draw two light PVC rails between each pair of piers above the wall."
+    },
+    "timberFenceStyleOptions": {
+      "rails": "Horizontal rails",
+      "verticalPalings": "Vertical palings"
+    },
+    "timberFenceStyleDesc": {
+      "rails": "Use the current horizontal rail visualization.",
+      "verticalPalings": "Show vertical timber boards with shaped pointed tops."
     }
   },
   "cutBricks": {
@@ -162,6 +173,7 @@
     "mortarCost": "Mortar Cost",
     "labourCost": "Labour Cost",
     "infillCost": "Fence Infill Cost",
+    "pvcPanels": "PVC Panels Used",
     "unitPrice": "Unit Price",
     "totalCost": "Total Estimated Cost",
     "defaultPricingNotice": "Using default prices until the company pricing database is configured.",

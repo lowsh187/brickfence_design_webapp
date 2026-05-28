@@ -183,9 +183,21 @@ export interface PricingItem {
    */
   unitQuantity?: number | null;
   /**
+   * Choose whether PVC is calculated from fixed panel sizes or actual metre length.
+   */
+  pvcPricingMode?: ('panel' | 'per_m') | null;
+  /**
    * Enter the custom unit label used for display and pricing.
    */
   customUnit?: string | null;
+  /**
+   * How many calculator base units one custom unit covers. Example: box of 10 bricks = 10; 2.4m panel = 2.4.
+   */
+  unitConversionFactor?: number | null;
+  /**
+   * AI or admin note explaining how this custom unit is converted for calculation.
+   */
+  unitConversionNote?: string | null;
   /**
    * Bag weight in kilograms. Used to estimate mortar bag count.
    */
@@ -198,6 +210,28 @@ export interface PricingItem {
    * Manual price with unit.
    */
   manualUnitPriceDisplay?: string | null;
+  /**
+   * Default panel size used for the summary unit price. Cost calculation still selects the right panel per bay.
+   */
+  pvcDefaultPanelSize?: ('4ft' | '5ft' | '6ft' | '8ft' | '10ft') | null;
+  /**
+   * PVC fence is priced per panel. Enter each default panel size price here.
+   */
+  pvcPanelPrices?: {
+    fourFt?: number | null;
+    fiveFt?: number | null;
+    sixFt?: number | null;
+    eightFt?: number | null;
+    tenFt?: number | null;
+  };
+  /**
+   * Effective PVC panel prices after filling missing sizes.
+   */
+  pvcPanelPriceDisplay?: string | null;
+  /**
+   * Shown when one or more PVC panel sizes are using fallback prices.
+   */
+  pvcPanelPriceWarning?: string | null;
   /**
    * Calculated from enabled supplier price sources.
    */
@@ -270,13 +304,44 @@ export interface SupplierPriceSource {
     | ('each' | 'm3' | 'm2' | 'm' | 'per_quantity' | 'per_1000' | 'per_brick' | 'per_bag' | '20kg_bag' | 'custom')
     | null;
   /**
+   * Manual fallback only. URL sources detect the PVC pricing mode automatically.
+   */
+  pvcPricingMode?: ('panel' | 'per_m') | null;
+  /**
    * Number of bricks covered by this supplier price.
    */
   unitQuantity?: number | null;
+  pvcPanelSize?: ('4ft' | '5ft' | '6ft' | '8ft' | '10ft') | null;
+  /**
+   * Enter PVC panel prices. Missing sizes use the next larger size price where available.
+   */
+  pvcPanelPrices?: {
+    fourFt?: number | null;
+    fiveFt?: number | null;
+    sixFt?: number | null;
+    eightFt?: number | null;
+    tenFt?: number | null;
+  };
+  /**
+   * Effective PVC panel prices after filling missing sizes.
+   */
+  pvcPanelPriceDisplay?: string | null;
+  /**
+   * Shown when one or more PVC panel sizes are using fallback prices.
+   */
+  pvcPanelPriceWarning?: string | null;
   /**
    * Enter the custom unit label used for display and pricing.
    */
   customUnit?: string | null;
+  /**
+   * How many calculator base units one custom unit covers. AI fills this for URL sources when possible.
+   */
+  unitConversionFactor?: number | null;
+  /**
+   * AI or admin note explaining how this custom unit is converted for calculation.
+   */
+  unitConversionNote?: string | null;
   /**
    * Bag weight in kilograms. Used when this source is priced per bag.
    */
@@ -420,10 +485,25 @@ export interface PricingItemsSelect<T extends boolean = true> {
   selectedSupplierPriceSource?: T;
   unit?: T;
   unitQuantity?: T;
+  pvcPricingMode?: T;
   customUnit?: T;
+  unitConversionFactor?: T;
+  unitConversionNote?: T;
   bagWeightKg?: T;
   manualUnitPrice?: T;
   manualUnitPriceDisplay?: T;
+  pvcDefaultPanelSize?: T;
+  pvcPanelPrices?:
+    | T
+    | {
+        fourFt?: T;
+        fiveFt?: T;
+        sixFt?: T;
+        eightFt?: T;
+        tenFt?: T;
+      };
+  pvcPanelPriceDisplay?: T;
+  pvcPanelPriceWarning?: T;
   autoAverageUnitPrice?: T;
   autoAverageUnitPriceDisplay?: T;
   selectedSupplierUnitPrice?: T;
@@ -448,8 +528,23 @@ export interface SupplierPriceSourcesSelect<T extends boolean = true> {
   supplierName?: T;
   pricingKey?: T;
   unit?: T;
+  pvcPricingMode?: T;
   unitQuantity?: T;
+  pvcPanelSize?: T;
+  pvcPanelPrices?:
+    | T
+    | {
+        fourFt?: T;
+        fiveFt?: T;
+        sixFt?: T;
+        eightFt?: T;
+        tenFt?: T;
+      };
+  pvcPanelPriceDisplay?: T;
+  pvcPanelPriceWarning?: T;
   customUnit?: T;
+  unitConversionFactor?: T;
+  unitConversionNote?: T;
   bagWeightKg?: T;
   region?: T;
   includesGST?: T;

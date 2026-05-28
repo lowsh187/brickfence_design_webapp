@@ -5,8 +5,15 @@ import type { Payload } from 'payload'
 
 import {
   type PricingKey,
+  type PvcPricingMode,
+  PVC_FENCE_PANEL_SPECS,
+  formatPvcPriceDisplay,
   formatPriceWithUnit,
+  inferPvcFencePanelSize,
   isPricingKey,
+  isPvcFencePricingKey,
+  normalizePvcPanelPrices,
+  type PvcFencePanelSize,
 } from './pricing'
 import {
   isSafeAIPriceParse,
@@ -25,7 +32,12 @@ export type SupplierPriceSourceDoc = {
   pricingKey?: string | null
   productUrl?: string | null
   unit?: string | null
+  pvcPricingMode?: string | null
+  pvcPanelPriceDisplay?: string | null
+  unitConversionFactor?: number | null
+  unitConversionNote?: string | null
   unitQuantity?: number | null
+  pvcPanelSize?: string | null
   customUnit?: string | null
   bagWeightKg?: number | null
   isEnabled?: boolean | null
@@ -34,13 +46,24 @@ export type SupplierPriceSourceDoc = {
   lastFetchedAt?: string | null
 }
 
+export type PvcFencePanelScrapeResult = Partial<Record<PvcFencePanelSize, {
+  currency: string
+  price: number
+  title: string
+  url: string
+}>>
+
 type ScrapedPrice = {
   bagWeightKg?: number
   title: string
   unitPrice: number
   currency: string
   unit?: string
+  pvcPricingMode?: PvcPricingMode
+  unitConversionFactor?: number
+  unitConversionNote?: string
   unitQuantity?: number
+  pvcPanelSize?: PvcFencePanelSize
 }
 
 function getFinalPriceDisplay(params: {
@@ -144,6 +167,7 @@ export function deriveSupplierNameFromUrl(url: string | null | undefined): strin
 export function normalizeSupplierUnitPrice(params: {
   pricingKey: string | null | undefined
   unit: string | null | undefined
+  unitConversionFactor?: number | null
   unitQuantity?: number | null
   unitPrice: number
 }): number {
@@ -160,6 +184,15 @@ export function normalizeSupplierUnitPrice(params: {
         : 1
 
     return params.unitPrice / quantity
+  }
+
+  if (
+    params.unit === 'custom' &&
+    typeof params.unitConversionFactor === 'number' &&
+    Number.isFinite(params.unitConversionFactor) &&
+    params.unitConversionFactor > 0
+  ) {
+    return params.unitPrice / params.unitConversionFactor
   }
 
   return params.unitPrice
@@ -198,6 +231,14 @@ function extractTitle(html: string): string {
   return title?.[1]?.trim() || 'Supplier product page'
 }
 
+function extractCurrency(html: string): string {
+  return (
+    html.match(/<meta[^>]+itemprop=["']priceCurrency["'][^>]+content=["']([^"']+)["']/i)?.[1] ??
+    html.match(/priceCurrency["']?\s*:\s*["']([A-Z]{3})["']/i)?.[1] ??
+    'AUD'
+  ).toUpperCase()
+}
+
 function getSupplierFetchUrl(url: string): string {
   try {
     const parsed = new URL(url)
@@ -226,6 +267,125 @@ function getSupplierFetchUrl(url: string): string {
   }
 
   return url
+}
+
+function buildPvcFencePanelUrl(sourceUrl: string, panelSize: PvcFencePanelSize): string | undefined {
+  try {
+    const parsed = new URL(sourceUrl)
+    const feet = panelSize.replace('ft', '')
+    const styleSlug = parsed.pathname.includes('t-top-railing')
+      ? 't-top-railing'
+      : 't-style-vinyl-railing'
+
+    parsed.pathname = `/products/detail/36-high-x-${feet}-long-white-${styleSlug}`
+    parsed.search = ''
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return undefined
+  }
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+}
+
+function decodeJavaScriptString(value: string): string {
+  return value
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'")
+    .replace(/\\\\/g, '\\')
+}
+
+function extractFencingDirectMainProduct(html: string):
+  | {
+      price: number
+      size?: string
+      title: string
+    }
+  | undefined {
+  const productMatch = html.match(/w\.mainProduct\s*=\s*\{([\s\S]*?)\};/i)
+  const productBody = productMatch?.[1]
+  if (!productBody) return undefined
+
+  const priceText = productBody.match(/\bbase_price:\s*([0-9]+(?:\.[0-9]+)?)/i)?.[1]
+  const titleText = productBody.match(/\btitle:\s*"((?:\\.|[^"])*)"/i)?.[1]
+  const sizeText = productBody.match(/\bsize:\s*"((?:\\.|[^"])*)"/i)?.[1]
+  const price = priceText ? Number.parseFloat(priceText) : Number.NaN
+  if (!Number.isFinite(price) || price <= 0 || !titleText) return undefined
+
+  return {
+    price,
+    size: sizeText ? decodeJavaScriptString(sizeText).trim() : undefined,
+    title: decodeJavaScriptString(titleText).trim(),
+  }
+}
+
+function extractFencingDirectOptionsGridEndpoint(html: string, sourceUrl: string): string | undefined {
+  const endpoint = html.match(/OPTIONS_GRID_ENDPOINT\s*=\s*"([^"]+)"/i)?.[1]
+  if (!endpoint) return undefined
+
+  try {
+    return new URL(endpoint.replace(/\\\//g, '/'), sourceUrl).toString()
+  } catch {
+    return undefined
+  }
+}
+
+function extractFencingDirectColor(html: string): string {
+  const color = html.match(/id=["']current-color["'][^>]*>([\s\S]*?)<\/span>/i)?.[1]
+  return decodeHtmlEntities(stripHtml(color ?? '')).trim() || 'White'
+}
+
+function extractFencingDirectSizeOptions(html: string): Partial<Record<PvcFencePanelSize, string>> {
+  const options: Partial<Record<PvcFencePanelSize, string>> = {}
+  const grid = html.match(/id=["']size-grid["'][^>]*>([\s\S]*?)<\/div>/i)?.[1]
+  if (!grid) return options
+
+  for (const match of grid.matchAll(/<a\b[\s\S]*?<\/a>/gi)) {
+    const label = decodeHtmlEntities(stripHtml(match[0])).replace(/\s+/g, ' ').trim()
+    const panelSize = inferPvcFencePanelSize(label)
+    if (panelSize) options[panelSize] = label
+  }
+
+  return options
+}
+
+async function fetchFencingDirectVariantHtml(params: {
+  color: string
+  endpoint: string
+  referrer: string
+  sizeLabel: string
+}): Promise<string> {
+  const safeEndpoint = await assertSafeSupplierUrl(params.endpoint)
+  const response = await fetch(safeEndpoint, {
+    body: new URLSearchParams({
+      color: params.color,
+      size: params.sizeLabel,
+    }),
+    headers: {
+      accept: 'text/html, */*; q=0.01',
+      'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      referer: params.referrer,
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+      'x-requested-with': 'XMLHttpRequest',
+    },
+    method: 'POST',
+    redirect: 'manual',
+    signal: AbortSignal.timeout(SUPPLIER_FETCH_TIMEOUT_MS),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Supplier variant endpoint returned HTTP ${response.status}`)
+  }
+
+  return responseToLimitedText(response)
 }
 
 function extractJsonLdPrices(html: string): number[] {
@@ -271,6 +431,32 @@ function extractTextPrices(text: string): number[] {
   }
 
   return prices
+}
+
+function extractMainEachProductPrice(text: string):
+  | {
+      unitPrice: number
+      unit: string
+    }
+  | undefined {
+  const measurementMatch = text.match(/Measurement Unit:\s*Ea/i)
+  if (!measurementMatch || typeof measurementMatch.index !== 'number') return undefined
+
+  const context = text.slice(Math.max(0, measurementMatch.index - 1200), measurementMatch.index)
+  const priceMatches = [
+    ...context.matchAll(/\$\s*([0-9]{1,4}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)/g),
+  ]
+  const priceText = priceMatches.at(-1)?.[1]
+  const unitPrice = priceText
+    ? Number.parseFloat(priceText.replace(/,/g, ''))
+    : Number.NaN
+
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0) return undefined
+
+  return {
+    unit: 'each',
+    unitPrice,
+  }
 }
 
 function parseQuantityValue(value: string | null | undefined): number | undefined {
@@ -387,6 +573,8 @@ function shouldUseAIPriceFallback(params: {
   unit?: string
   unitPrice: number
 }): boolean {
+  if (isPvcFencePricingKey(params.pricingKey)) return true
+
   if (!params.unit) return true
 
   return (
@@ -488,8 +676,31 @@ function getPriceCandidateFromHtml(html: string): {
   title: string
   unitPrice?: number
 } {
-  const title = extractTitle(html)
+  const fencingDirectMainProduct = extractFencingDirectMainProduct(html)
+  const title = fencingDirectMainProduct?.title ?? extractTitle(html)
   const text = stripHtml(html)
+  if (fencingDirectMainProduct) {
+    return {
+      structuredPrice: {
+        unit: 'each',
+        unitPrice: fencingDirectMainProduct.price,
+      },
+      text,
+      title,
+      unitPrice: fencingDirectMainProduct.price,
+    }
+  }
+
+  const mainEachProductPrice = extractMainEachProductPrice(text)
+  if (mainEachProductPrice) {
+    return {
+      structuredPrice: mainEachProductPrice,
+      text,
+      title,
+      unitPrice: mainEachProductPrice.unitPrice,
+    }
+  }
+
   const structuredPrice = extractStructuredPrice(html)
   const prices = structuredPrice
     ? [structuredPrice.unitPrice]
@@ -545,6 +756,8 @@ export async function scrapeSupplierPrice(
     : inferUnitFromText(text)
   let resolvedUnitPrice = unitPrice
   let bagWeightKg: number | undefined
+  let unitConversionFactor: number | undefined
+  let unitConversionNote: string | undefined
 
   if (
     shouldUseAIPriceFallback({
@@ -567,6 +780,8 @@ export async function scrapeSupplierPrice(
           unitQuantity: aiParsed.unitQuantity ?? undefined,
         }
         bagWeightKg = aiParsed.bagWeightKg ?? undefined
+        unitConversionFactor = aiParsed.unitConversionFactor ?? undefined
+        unitConversionNote = aiParsed.unitConversionNote ?? undefined
       }
     } catch {
       // Keep the deterministic parse result when the optional AI fallback is unavailable.
@@ -576,11 +791,87 @@ export async function scrapeSupplierPrice(
   return {
     title,
     unitPrice: resolvedUnitPrice,
-    currency: 'AUD',
+    currency: extractCurrency(html),
     unit: unitInfo.unit,
+    pvcPricingMode: isPvcFencePricingKey(pricingKey)
+      ? unitInfo.unit === 'm'
+        ? 'per_m'
+        : 'panel'
+      : undefined,
+    unitConversionFactor,
+    unitConversionNote,
     unitQuantity: unitInfo.unitQuantity,
     bagWeightKg,
+    pvcPanelSize: isPvcFencePricingKey(pricingKey)
+      ? inferPvcFencePanelSize(`${fetchUrl} ${title} ${text.slice(0, 1000)}`)
+      : undefined,
   }
+}
+
+export async function scrapePvcFencePanelPrices(
+  url: string,
+): Promise<PvcFencePanelScrapeResult> {
+  const prices: PvcFencePanelScrapeResult = {}
+  const initialHtml = await fetchSupplierHtml(url)
+  const endpoint = extractFencingDirectOptionsGridEndpoint(initialHtml, url)
+  const color = extractFencingDirectColor(initialHtml)
+  const sizeOptions = extractFencingDirectSizeOptions(initialHtml)
+
+  if (endpoint && Object.keys(sizeOptions).length > 0) {
+    for (const spec of PVC_FENCE_PANEL_SPECS) {
+      const sizeLabel = sizeOptions[spec.label]
+      if (!sizeLabel) continue
+
+      try {
+        const variantHtml = await fetchFencingDirectVariantHtml({
+          color,
+          endpoint,
+          referrer: url,
+          sizeLabel,
+        })
+        const mainProduct = extractFencingDirectMainProduct(variantHtml)
+        const scraped = getPriceCandidateFromHtml(variantHtml)
+        const panelSize =
+          inferPvcFencePanelSize(`${mainProduct?.size ?? ''} ${mainProduct?.title ?? ''}`) ??
+          inferPvcFencePanelSize(`${sizeLabel} ${scraped.title}`)
+        if (!panelSize || typeof scraped.unitPrice !== 'number') continue
+
+        prices[panelSize] = {
+          currency: extractCurrency(variantHtml),
+          price: scraped.unitPrice,
+          title: scraped.title,
+          url,
+        }
+      } catch {
+        // Skip unavailable variant options so one failed size does not fail the batch.
+      }
+    }
+
+    if (Object.keys(prices).length > 0) return prices
+  }
+
+  for (const spec of PVC_FENCE_PANEL_SPECS) {
+    const panelUrl = buildPvcFencePanelUrl(url, spec.label)
+    if (!panelUrl) continue
+
+    try {
+      const scraped = await scrapeSupplierPrice(panelUrl, 'pvc_fence')
+      const panelSize =
+        scraped.pvcPanelSize ?? inferPvcFencePanelSize(`${panelUrl} ${scraped.title}`)
+      if (!panelSize) continue
+
+      prices[panelSize] = {
+        currency: scraped.currency,
+        price: scraped.unitPrice,
+        title: scraped.title,
+        url: panelUrl,
+      }
+    } catch {
+      // Skip unavailable panel URLs so one missing size does not fail the batch.
+    }
+  }
+
+  return prices
 }
 
 export async function recomputeSupplierAverages(payload: Payload) {
@@ -597,19 +888,48 @@ export async function recomputeSupplierAverages(payload: Payload) {
   })
 
   const priceGroups = new Map<PricingKey, number[]>()
+  const pvcPanelPriceGroups = new Map<PvcFencePanelSize, number[]>()
 
   for (const source of sourceResult.docs as Array<{
     pricingKey?: string | null
     unit?: string | null
+    pvcPricingMode?: string | null
+    unitConversionFactor?: number | null
     unitQuantity?: number | null
     lastPrice?: number | null
+    pvcPanelPrices?: {
+      eightFt?: number | null
+      fiveFt?: number | null
+      fourFt?: number | null
+      sixFt?: number | null
+      tenFt?: number | null
+    } | null
   }>) {
     if (!isPricingKey(source.pricingKey) || typeof source.lastPrice !== 'number') continue
+      if (source.pricingKey === 'pvc_fence' && source.pvcPricingMode !== 'per_m') {
+        const normalized = normalizePvcPanelPrices(
+          {
+            '4ft': source.pvcPanelPrices?.fourFt ?? undefined,
+            '5ft': source.pvcPanelPrices?.fiveFt ?? undefined,
+            '6ft': source.pvcPanelPrices?.sixFt ?? undefined,
+            '8ft': source.pvcPanelPrices?.eightFt ?? undefined,
+            '10ft': source.pvcPanelPrices?.tenFt ?? undefined,
+          },
+          source.lastPrice,
+        ).prices
+
+        for (const spec of PVC_FENCE_PANEL_SPECS) {
+          const values = pvcPanelPriceGroups.get(spec.label) ?? []
+          values.push(normalized[spec.label])
+          pvcPanelPriceGroups.set(spec.label, values)
+        }
+      }
       const prices = priceGroups.get(source.pricingKey) ?? []
       prices.push(
         normalizeSupplierUnitPrice({
           pricingKey: source.pricingKey,
           unit: source.unit,
+          unitConversionFactor: source.unitConversionFactor,
           unitQuantity: source.unitQuantity,
           unitPrice: source.lastPrice,
         }),
@@ -671,6 +991,7 @@ export async function recomputeSupplierAverages(payload: Payload) {
           selectedSupplierPrice = normalizeSupplierUnitPrice({
             pricingKey,
             unit: source.unit,
+            unitConversionFactor: source.unitConversionFactor,
             unitQuantity: source.unitQuantity,
             unitPrice: source.lastPrice,
           })
@@ -688,6 +1009,18 @@ export async function recomputeSupplierAverages(payload: Payload) {
     }
 
     const averagePrice = Number(average.toFixed(2))
+    const pvcPanelAveragePrices =
+      pricingKey === 'pvc_fence'
+        ? Object.fromEntries(
+          PVC_FENCE_PANEL_SPECS.map((spec) => {
+            const values = pvcPanelPriceGroups.get(spec.label) ?? []
+            const panelAverage =
+              values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length)
+
+            return [spec.label, Number(panelAverage.toFixed(2))]
+          }),
+        ) as Record<PvcFencePanelSize, number>
+        : undefined
     const displayUnit = resolveUnitForDisplay(existing?.unit, existing?.customUnit)
     const averagePriceDisplay = formatPriceWithUnit(
       averagePrice,
@@ -742,6 +1075,22 @@ export async function recomputeSupplierAverages(payload: Payload) {
             selectedSupplierName,
           }),
           manualUnitPriceDisplay: manualPriceDisplay,
+          pvcPanelPrices: pvcPanelAveragePrices
+            ? {
+                eightFt: pvcPanelAveragePrices['8ft'],
+                fiveFt: pvcPanelAveragePrices['5ft'],
+                fourFt: pvcPanelAveragePrices['4ft'],
+                sixFt: pvcPanelAveragePrices['6ft'],
+                tenFt: pvcPanelAveragePrices['10ft'],
+              }
+            : undefined,
+          pvcPanelPriceDisplay: pvcPanelAveragePrices
+            ? formatPvcPriceDisplay({
+              mode: 'panel',
+              panelPrices: pvcPanelAveragePrices,
+            })
+            : undefined,
+          pvcPanelPriceWarning: pvcPanelAveragePrices ? '' : undefined,
         },
       })
     }

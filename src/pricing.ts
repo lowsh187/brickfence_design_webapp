@@ -21,43 +21,43 @@ export const DEFAULT_PRICING_ITEMS = {
   stretcher_bond_labour_cost: {
     name: 'Stretcher bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 2,
     currency: 'AUD',
   },
   stack_bond_labour_cost: {
     name: 'Stack bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 2,
     currency: 'AUD',
   },
   header_bond_labour_cost: {
     name: 'Header bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 2,
     currency: 'AUD',
   },
   english_bond_labour_cost: {
     name: 'English bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 3,
     currency: 'AUD',
   },
   english_garden_bond_labour_cost: {
     name: 'English garden bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 3,
     currency: 'AUD',
   },
   flemish_bond_labour_cost: {
     name: 'Flemish bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 3,
     currency: 'AUD',
   },
   flemish_garden_bond_labour_cost: {
     name: 'Flemish garden bond labour cost',
     unit: 'per_brick',
-    unitPrice: 95,
+    unitPrice: 3,
     currency: 'AUD',
   },
   timber_fence: {
@@ -67,9 +67,17 @@ export const DEFAULT_PRICING_ITEMS = {
     currency: 'AUD',
   },
   pvc_fence: {
-    name: 'PVC fence infill',
-    unit: 'm',
-    unitPrice: 70,
+    name: 'PVC fence',
+    unit: 'each',
+    unitPrice: 148.15,
+    pvcPricingMode: 'panel',
+    pvcPanelPrices: {
+      '4ft': 110,
+      '5ft': 130,
+      '6ft': 148.15,
+      '8ft': 227.81,
+      '10ft': 309.39,
+    },
     currency: 'AUD',
   },
 } as const
@@ -90,6 +98,145 @@ export const LABOUR_PRICING_KEYS = [
 ] as const satisfies readonly PricingKey[]
 
 export type LabourPricingKey = (typeof LABOUR_PRICING_KEYS)[number]
+
+export const PVC_FENCE_PANEL_SPECS = [
+  { label: '4ft', maxWidthM: 1.219 },
+  { label: '5ft', maxWidthM: 1.524 },
+  { label: '6ft', maxWidthM: 1.829 },
+  { label: '8ft', maxWidthM: 2.438 },
+  { label: '10ft', maxWidthM: 3.048 },
+] as const satisfies ReadonlyArray<{
+  label: string
+  maxWidthM: number
+}>
+
+export type PvcFencePanelSize = (typeof PVC_FENCE_PANEL_SPECS)[number]['label']
+
+export type PvcPanelPriceMap = Partial<Record<PvcFencePanelSize, number>>
+
+export type PvcPricingMode = 'panel' | 'per_m'
+
+export function isPvcFencePricingKey(value: string | null | undefined): value is 'pvc_fence' {
+  return value === 'pvc_fence'
+}
+
+export function inferPvcFencePanelSize(
+  value: string | null | undefined,
+): PvcFencePanelSize | undefined {
+  if (!value) return undefined
+  const normalized = value.toLowerCase()
+  const match =
+    normalized.match(/\b(4|5|6|8|10)\s*(?:ft|'|’)\s*(?:l|long)?\b/) ??
+    normalized.match(/\b(?:x|-)(4|5|6|8|10)(?:-|_)?long\b/) ??
+    normalized.match(/\b(4|5|6|8|10)-long\b/)
+  const size = match?.[1] ? `${match[1]}ft` : undefined
+
+  return PVC_FENCE_PANEL_SPECS.some((spec) => spec.label === size)
+    ? (size as PvcFencePanelSize)
+    : undefined
+}
+
+export function normalizePvcPanelPrices(
+  input: PvcPanelPriceMap | null | undefined,
+  fallbackPrice?: number,
+): {
+  explicitCount: number
+  missingSizes: PvcFencePanelSize[]
+  prices: Record<PvcFencePanelSize, number>
+  warning: string
+} {
+  const sizes = PVC_FENCE_PANEL_SPECS.map((spec) => spec.label)
+  const explicitPrices = sizes
+    .map((size) => ({
+      price: input?.[size],
+      size,
+    }))
+    .filter((item): item is { price: number; size: PvcFencePanelSize } =>
+      typeof item.price === 'number' && Number.isFinite(item.price) && item.price > 0,
+    )
+  const explicitCount = explicitPrices.length
+  const firstKnownPrice =
+    explicitPrices[0]?.price ??
+    (typeof fallbackPrice === 'number' && Number.isFinite(fallbackPrice) && fallbackPrice > 0
+      ? fallbackPrice
+      : 0)
+  const prices = {} as Record<PvcFencePanelSize, number>
+  const missingSizes: PvcFencePanelSize[] = []
+
+  for (let index = 0; index < sizes.length; index++) {
+    const size = sizes[index]
+    const explicitPrice = input?.[size]
+    if (typeof explicitPrice === 'number' && Number.isFinite(explicitPrice) && explicitPrice > 0) {
+      prices[size] = explicitPrice
+      continue
+    }
+
+    missingSizes.push(size)
+    const nextLarger = sizes
+      .slice(index + 1)
+      .map((largerSize) => input?.[largerSize])
+      .find((price) => typeof price === 'number' && Number.isFinite(price) && price > 0)
+    const previousSmaller = sizes
+      .slice(0, index)
+      .reverse()
+      .map((smallerSize) => input?.[smallerSize])
+      .find((price) => typeof price === 'number' && Number.isFinite(price) && price > 0)
+
+    prices[size] =
+      typeof nextLarger === 'number'
+        ? nextLarger
+        : typeof previousSmaller === 'number'
+          ? previousSmaller
+          : firstKnownPrice
+  }
+
+  let warning = ''
+  if (explicitCount === 1) {
+    warning =
+      'Only one PVC panel size price was entered. All PVC panel sizes will use that price by default.'
+  } else if (missingSizes.length > 0 && explicitCount > 1) {
+    warning = `Missing PVC panel prices: ${missingSizes.join(', ')}. Missing sizes use the next larger size price where available.`
+  } else if (explicitCount === 0) {
+    warning =
+      'No PVC panel size prices were entered. PVC panel sizes will use the default unit price until prices are entered.'
+  }
+
+  return {
+    explicitCount,
+    missingSizes,
+    prices,
+    warning,
+  }
+}
+
+export function formatPvcPanelPriceSummary(
+  prices: Record<PvcFencePanelSize, number> | PvcPanelPriceMap,
+): string {
+  return PVC_FENCE_PANEL_SPECS
+    .map((spec) => {
+      const price = prices[spec.label]
+      return typeof price === 'number' && Number.isFinite(price)
+        ? `${spec.label}: ${price} each`
+        : `${spec.label}: No data`
+    })
+    .join(', ')
+}
+
+export function formatPvcPriceDisplay(params: {
+  mode?: string | null
+  panelPrices?: Record<PvcFencePanelSize, number> | PvcPanelPriceMap | null
+  unitPrice?: number | null
+}): string {
+  if (params.mode === 'per_m') {
+    return typeof params.unitPrice === 'number' && Number.isFinite(params.unitPrice)
+      ? `${params.unitPrice} per m`
+      : 'No data'
+  }
+
+  return params.panelPrices
+    ? formatPvcPanelPriceSummary(params.panelPrices)
+    : 'No data'
+}
 
 export const LABOUR_PRICING_KEY_BY_BOND_PATTERN: Record<string, LabourPricingKey> = {
   stretcher: 'stretcher_bond_labour_cost',
@@ -116,8 +263,12 @@ export type PricingItem = {
   name: string
   unit: string
   unitPrice: number
+  pvcPricingMode?: PvcPricingMode
+  unitConversionFactor?: number
+  unitConversionNote?: string
   unitQuantity?: number
   bagWeightKg?: number
+  pvcPanelPrices?: Partial<Record<PvcFencePanelSize, number>>
   currency: string
 }
 
@@ -154,7 +305,34 @@ export function normalizeUnitPrice(item: PricingItem): number {
     return item.unitPrice / quantity
   }
 
+  if (
+    typeof item.unitConversionFactor === 'number' &&
+    Number.isFinite(item.unitConversionFactor) &&
+    item.unitConversionFactor > 0
+  ) {
+    return item.unitPrice / item.unitConversionFactor
+  }
+
   return item.unitPrice
+}
+
+export function baseCalculationUnitForPricingKey(
+  pricingKey: string | null | undefined,
+): string {
+  if (isLabourPricingKey(pricingKey)) return 'one brick'
+
+  switch (pricingKey) {
+    case 'standard_brick':
+      return 'one brick'
+    case 'mortar':
+      return 'one mortar pricing unit used by the calculator'
+    case 'timber_fence':
+      return 'one metre'
+    case 'pvc_fence':
+      return 'one panel'
+    default:
+      return 'one calculator unit'
+  }
 }
 
 export function defaultUnitForPricingKey(
@@ -164,8 +342,9 @@ export function defaultUnitForPricingKey(
     case 'mortar':
       return 'per_bag'
     case 'timber_fence':
-    case 'pvc_fence':
       return 'm'
+    case 'pvc_fence':
+      return 'each'
     case 'standard_brick':
     default:
       if (isLabourPricingKey(pricingKey)) return 'per_brick'
@@ -240,6 +419,59 @@ function calculateMortarCost(mortarVolumeM3: number, mortarPrice: PricingItem): 
   }
 }
 
+export function selectPvcFencePanel(widthM: number):
+  | (typeof PVC_FENCE_PANEL_SPECS)[number]
+  | undefined {
+  if (!Number.isFinite(widthM) || widthM <= 0) return undefined
+
+  return PVC_FENCE_PANEL_SPECS.find((spec) => widthM <= spec.maxWidthM + 0.001)
+}
+
+export function calculatePvcFencePanelCounts(
+  bayWidthsM: number[],
+): Partial<Record<PvcFencePanelSize, number>> {
+  const counts: Partial<Record<PvcFencePanelSize, number>> = {}
+
+  for (const widthM of bayWidthsM) {
+    const panel = selectPvcFencePanel(widthM)
+    if (!panel) continue
+    counts[panel.label] = (counts[panel.label] ?? 0) + 1
+  }
+
+  return counts
+}
+
+export function calculatePvcFenceCost(params: {
+  bayWidthsM: number[]
+  fallbackLengthM: number
+  prices: PricingMap
+}): number {
+  const pvcPrice = params.prices.pvc_fence
+  if (pvcPrice.pvcPricingMode === 'per_m' || pvcPrice.unit === 'm') {
+    const pricedLength =
+      params.bayWidthsM.length > 0
+        ? params.bayWidthsM.reduce((sum, width) => sum + width, 0)
+        : params.fallbackLengthM
+
+    return pricedLength * normalizeUnitPrice(pvcPrice)
+  }
+
+  const panelCounts = calculatePvcFencePanelCounts(params.bayWidthsM)
+  const normalizedPanelPrices = normalizePvcPanelPrices(
+    pvcPrice.pvcPanelPrices,
+    pvcPrice.unitPrice,
+  ).prices
+  const panelCost = Object.entries(panelCounts).reduce((sum, [size, count]) => {
+    const unitPrice = normalizedPanelPrices[size as PvcFencePanelSize]
+
+    return sum + (count ?? 0) * unitPrice
+  }, 0)
+
+  if (panelCost > 0) return panelCost
+
+  return params.fallbackLengthM * normalizeUnitPrice(params.prices.pvc_fence)
+}
+
 export function calculateCostPricing(params: {
   brickCount: number
   mortarVolumeM3: number
@@ -247,6 +479,7 @@ export function calculateCostPricing(params: {
   renderedHeightM: number
   bondPattern: string
   timberFence: string
+  infillBayWidthsM?: number[]
   prices: PricingMap
 }): CostPricing {
   const labourKey = labourPricingKeyForBondPattern(params.bondPattern)
@@ -258,7 +491,11 @@ export function calculateCostPricing(params: {
     params.timberFence === 'timber'
       ? params.renderedLengthM * normalizeUnitPrice(params.prices.timber_fence)
       : params.timberFence === 'pvc'
-      ? params.renderedLengthM * normalizeUnitPrice(params.prices.pvc_fence)
+      ? calculatePvcFenceCost({
+        bayWidthsM: params.infillBayWidthsM ?? [],
+        fallbackLengthM: params.renderedLengthM,
+        prices: params.prices,
+      })
       : 0
 
   return {

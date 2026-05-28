@@ -22,6 +22,7 @@ export interface FormState {
   pierSpacing: string
   cutBricks: string
   timberFence: string
+  timberFenceStyle: string
   activeQuoteName: string
 }
 
@@ -45,6 +46,7 @@ const initialState: FormState = {
   pierSpacing: '',
   cutBricks: '',
   timberFence: '',
+  timberFenceStyle: '',
   activeQuoteName: '',
 }
 
@@ -84,6 +86,7 @@ function loadState(): FormState {
         pierSpacing: merged.pierSpacing ?? '',
         cutBricks: merged.cutBricks ?? '',
         timberFence: merged.timberFence ?? '',
+        timberFenceStyle: merged.timberFenceStyle ?? '',
         activeQuoteName: merged.activeQuoteName ?? '',
       }
     }

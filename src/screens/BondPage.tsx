@@ -15,6 +15,7 @@ const STACK_HIDDEN_PIER_SUPPORTED_SIZES = ['2x1', '2x2']
 const STRETCHER_HIDDEN_PIER_SUPPORTED_SIZES = ['1_5x1', '1_5x1_5', '2x1', '2x2']
 const TWO_BY_TWO_ONLY_PIER_SIZES = ['2x2']
 const MAX_PIER_HEIGHT_M = 2.5
+const PVC_MIN_REVEAL_ABOVE_WALL_M = 0.8
 
 function formatMeters(value: number): string {
   if (!Number.isFinite(value)) return ''
@@ -71,6 +72,17 @@ export default function BondPage() {
   const showInfill = hasPierType
   const spacingTooWide = showPierSpacing && pierSpacing > 3
   const pierHeightAtMinimum = showPierHeight && height > 0 && pierHeight <= height
+  const pvcFenceHeightInvalid =
+    state.timberFence === 'pvc' &&
+    height > 0 &&
+    (!Number.isFinite(pierHeight) ||
+      pierHeight - height < PVC_MIN_REVEAL_ABOVE_WALL_M)
+  const verticalTimberHeightInvalid =
+    state.timberFence === 'timber' &&
+    (state.timberFenceStyle || 'rails') === 'verticalPalings' &&
+    height > 0 &&
+    (!Number.isFinite(pierHeight) ||
+      pierHeight - height < PVC_MIN_REVEAL_ABOVE_WALL_M)
   const canRenderPierPreview = length > 0 && height > 0 && !spacingTooWide && brickDimensionsValid
   const hasSelectedBond = bonds.some((b) => b.id === state.bondPattern)
   const noCutAvailable = state.bondPattern === 'stretcher' || state.bondPattern === 'stack'
@@ -85,6 +97,7 @@ export default function BondPage() {
     dispatch({ type: 'SET_FIELD', field: 'pierHeight', value: '' })
     dispatch({ type: 'SET_FIELD', field: 'pierSpacing', value: '' })
     dispatch({ type: 'SET_FIELD', field: 'timberFence', value: '' })
+    dispatch({ type: 'SET_FIELD', field: 'timberFenceStyle', value: '' })
   }
 
   const clearCutAndPierFields = () => {
@@ -291,6 +304,7 @@ export default function BondPage() {
                     field: 'timberFence',
                     value: pierType === 'none' ? '' : 'none',
                   })
+                  dispatch({ type: 'SET_FIELD', field: 'timberFenceStyle', value: '' })
                 }}
                 className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
                   selected
@@ -416,15 +430,23 @@ export default function BondPage() {
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {(['none', 'timber', 'pvc'] as const).map((option) => {
               const selected = state.timberFence === option
+              const invalidSelectedPvc = option === 'pvc' && selected && pvcFenceHeightInvalid
               return (
                 <button
                   key={option}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     dispatch({ type: 'SET_FIELD', field: 'timberFence', value: option })
-                  }
+                    dispatch({
+                      type: 'SET_FIELD',
+                      field: 'timberFenceStyle',
+                      value: option === 'timber' ? state.timberFenceStyle || 'rails' : '',
+                    })
+                  }}
                   className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
-                    selected
+                    invalidSelectedPvc
+                      ? 'border-red-400 bg-red-50'
+                      : selected
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-gray-300 hover:bg-white'
                   }`}
@@ -439,6 +461,63 @@ export default function BondPage() {
               )
             })}
           </div>
+          {pvcFenceHeightInvalid && (
+            <p className="mt-3 text-xs text-red-500">
+              {t('pier.pvcHeightWarning', {
+                minimum: formatMeters(height + PVC_MIN_REVEAL_ABOVE_WALL_M),
+                reveal: formatMeters(PVC_MIN_REVEAL_ABOVE_WALL_M),
+              })}
+            </p>
+          )}
+          {state.timberFence === 'timber' && (
+            <div className="mt-5">
+              <label className="block text-sm font-medium text-text mb-2">
+                {t('pier.timberFenceStyle')}
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(['rails', 'verticalPalings'] as const).map((style) => {
+                  const selected = (state.timberFenceStyle || 'rails') === style
+                  const invalidSelectedVertical =
+                    style === 'verticalPalings' && selected && verticalTimberHeightInvalid
+                  return (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() =>
+                        dispatch({
+                          type: 'SET_FIELD',
+                          field: 'timberFenceStyle',
+                          value: style,
+                        })
+                      }
+                      className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                        invalidSelectedVertical
+                          ? 'border-red-400 bg-red-50'
+                          : selected
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-gray-300 hover:bg-white'
+                      }`}
+                    >
+                      <div className="font-semibold text-text">
+                        {t(`pier.timberFenceStyleOptions.${style}`)}
+                      </div>
+                      <div className="mt-1 text-xs text-text-muted">
+                        {t(`pier.timberFenceStyleDesc.${style}`)}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              {verticalTimberHeightInvalid && (
+                <p className="mt-3 text-xs text-red-500">
+                  {t('pier.verticalTimberHeightWarning', {
+                    minimum: formatMeters(height + PVC_MIN_REVEAL_ABOVE_WALL_M),
+                    reveal: formatMeters(PVC_MIN_REVEAL_ABOVE_WALL_M),
+                  })}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </>
@@ -488,6 +567,8 @@ export default function BondPage() {
             (localStep === 1 && !state.cutBricks) ||
             (localStep === 2 && !state.pierType) ||
             (localStep === 2 && hasPierType && !state.pierSize) ||
+            (localStep === 2 && pvcFenceHeightInvalid) ||
+            (localStep === 2 && verticalTimberHeightInvalid) ||
             (localStep === 2 && (spacingTooWide || !brickDimensionsValid))
           }
           className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm cursor-pointer"
@@ -515,6 +596,7 @@ export default function BondPage() {
         pierSpacingM={pierSpacing}
         cutBricks={state.cutBricks || undefined}
         timberFence={state.timberFence || undefined}
+        timberFenceStyle={state.timberFenceStyle || undefined}
         brickDimensions={brickDimensions}
         showDiagram={canRenderPierPreview && !!state.bondPattern && !!state.cutBricks}
       />

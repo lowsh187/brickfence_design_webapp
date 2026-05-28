@@ -6,6 +6,7 @@ import {
   type PricingItem,
   defaultPricingMap,
   isPricingKey,
+  normalizePvcPanelPrices,
 } from '../../pricing'
 import {
   getRelationshipID,
@@ -20,6 +21,9 @@ type PricingItemDoc = {
   key?: string | null
   name?: string | null
   unit?: string | null
+  pvcPricingMode?: 'panel' | 'per_m' | null
+  unitConversionFactor?: number | null
+  unitConversionNote?: string | null
   unitQuantity?: number | null
   customUnit?: string | null
   bagWeightKg?: number | null
@@ -31,6 +35,13 @@ type PricingItemDoc = {
     | { id?: number | string }
     | null
   manualUnitPrice?: number | null
+  pvcPanelPrices?: {
+    fourFt?: number | null
+    fiveFt?: number | null
+    sixFt?: number | null
+    eightFt?: number | null
+    tenFt?: number | null
+  } | null
   autoAverageUnitPrice?: number | null
   selectedSupplierUnitPrice?: number | null
   effectiveUnitPrice?: number | null
@@ -100,9 +111,17 @@ export async function GET() {
             supplierPrice = normalizeSupplierUnitPrice({
               pricingKey: doc.key,
               unit: supplierSource.unit,
+              unitConversionFactor: supplierSource.unitConversionFactor,
               unitQuantity: supplierSource.unitQuantity,
               unitPrice: supplierSource.lastPrice,
             })
+            if (doc.key === 'pvc_fence') {
+              doc.pvcPricingMode = supplierSource.pvcPricingMode ?? doc.pvcPricingMode
+              doc.unit = supplierSource.unit ?? doc.unit
+              if (supplierSource.pvcPanelPrices) {
+                doc.pvcPanelPrices = supplierSource.pvcPanelPrices
+              }
+            }
           }
         } catch {
           supplierPrice = undefined
@@ -121,6 +140,10 @@ export async function GET() {
           : manualPrice ?? averagePrice ?? effectivePrice
 
       if (typeof unitPrice !== 'number') continue
+      const shouldExposeUnitConversion =
+        doc.priceSource !== 'supplier' &&
+        doc.priceSource !== 'average' &&
+        typeof manualPrice === 'number'
 
       prices[doc.key] = {
         key: doc.key,
@@ -133,11 +156,36 @@ export async function GET() {
           typeof doc.unitQuantity === 'number'
             ? doc.unitQuantity
             : prices[doc.key].unitQuantity,
+        unitConversionFactor:
+          shouldExposeUnitConversion && typeof doc.unitConversionFactor === 'number'
+            ? doc.unitConversionFactor
+            : prices[doc.key].unitConversionFactor,
+        unitConversionNote:
+          shouldExposeUnitConversion
+            ? doc.unitConversionNote || prices[doc.key].unitConversionNote
+            : prices[doc.key].unitConversionNote,
         unitPrice,
+        pvcPricingMode:
+          doc.key === 'pvc_fence'
+            ? doc.pvcPricingMode ?? (doc.unit === 'm' ? 'per_m' : 'panel')
+            : prices[doc.key].pvcPricingMode,
         bagWeightKg:
           typeof doc.bagWeightKg === 'number'
             ? doc.bagWeightKg
             : prices[doc.key].bagWeightKg,
+        pvcPanelPrices:
+          doc.key === 'pvc_fence'
+            ? normalizePvcPanelPrices(
+              {
+                '4ft': doc.pvcPanelPrices?.fourFt ?? undefined,
+                '5ft': doc.pvcPanelPrices?.fiveFt ?? undefined,
+                '6ft': doc.pvcPanelPrices?.sixFt ?? undefined,
+                '8ft': doc.pvcPanelPrices?.eightFt ?? undefined,
+                '10ft': doc.pvcPanelPrices?.tenFt ?? undefined,
+              },
+              unitPrice,
+            ).prices
+            : prices[doc.key].pvcPanelPrices,
         currency: doc.currency || prices[doc.key].currency,
       } satisfies PricingItem
     }

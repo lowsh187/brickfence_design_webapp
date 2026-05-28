@@ -5,10 +5,13 @@ import { pricingKeyOptions, pricingUnitOptions } from '../pricingOptions'
 import {
   LABOUR_PRICING_KEYS,
   PRICING_KEYS,
+  formatPvcPanelPriceSummary,
+  formatPvcPriceDisplay,
   type PricingKey,
   defaultUnitForPricingKey,
   formatPriceWithUnit,
   isLabourPricingKey,
+  normalizePvcPanelPrices,
 } from '../../pricing'
 import {
   getRelationshipID,
@@ -30,7 +33,7 @@ const UNITS_BY_PRICING_KEY: Partial<Record<PricingKey, string[]>> = {
   standard_brick: ['each', 'per_quantity'],
   mortar: ['per_bag', 'm3'],
   timber_fence: ['m'],
-  pvc_fence: ['m'],
+  pvc_fence: ['each', 'm'],
 }
 
 const PRICE_SOURCE_OPTIONS = [
@@ -79,6 +82,45 @@ function resolveUnitForDisplay(
   return unit === 'custom' ? customUnit || unit : unit
 }
 
+function pvcPanelPriceFieldName(size: string | null | undefined):
+  | 'fourFt'
+  | 'fiveFt'
+  | 'sixFt'
+  | 'eightFt'
+  | 'tenFt'
+  | undefined {
+  switch (size) {
+    case '4ft':
+      return 'fourFt'
+    case '5ft':
+      return 'fiveFt'
+    case '6ft':
+      return 'sixFt'
+    case '8ft':
+      return 'eightFt'
+    case '10ft':
+      return 'tenFt'
+    default:
+      return undefined
+  }
+}
+
+function readPvcPanelPrices(value: {
+  eightFt?: number | null
+  fiveFt?: number | null
+  fourFt?: number | null
+  sixFt?: number | null
+  tenFt?: number | null
+} | null | undefined) {
+  return {
+    '4ft': value?.fourFt ?? undefined,
+    '5ft': value?.fiveFt ?? undefined,
+    '6ft': value?.sixFt ?? undefined,
+    '8ft': value?.eightFt ?? undefined,
+    '10ft': value?.tenFt ?? undefined,
+  }
+}
+
 function optionValue(option: string | { value: string }): string {
   return typeof option === 'string' ? option : option.value
 }
@@ -103,6 +145,13 @@ function getFinalPriceDisplay(params: {
   }
 
   return manualPrice ?? averagePrice ?? 'No data'
+}
+
+function getPvcPricingMode(data: {
+  pvcPricingMode?: string | null
+  unit?: string | null
+}): 'panel' | 'per_m' {
+  return data.pvcPricingMode === 'per_m' || data.unit === 'm' ? 'per_m' : 'panel'
 }
 
 function getFinalPriceSourceDisplay(params: {
@@ -141,12 +190,21 @@ export const PricingItems: CollectionConfig = {
     afterRead: [
       async ({ doc, req }) => {
         const unit = resolveUnitForDisplay(doc.unit, doc.customUnit)
+        const pvcPricingMode = getPvcPricingMode(doc)
         const manualUnitPriceDisplay =
-          doc.manualUnitPriceDisplay ||
-          formatPriceWithUnit(doc.manualUnitPrice, unit)
+          doc.key === 'pvc_fence'
+            ? formatPvcPriceDisplay({
+              mode: pvcPricingMode,
+              panelPrices: readPvcPanelPrices(doc.pvcPanelPrices),
+              unitPrice: doc.manualUnitPrice,
+            })
+            : doc.manualUnitPriceDisplay ||
+              formatPriceWithUnit(doc.manualUnitPrice, unit)
         const autoAverageUnitPriceDisplay =
-          doc.autoAverageUnitPriceDisplay ||
-          formatPriceWithUnit(doc.autoAverageUnitPrice, unit)
+          doc.key === 'pvc_fence' && pvcPricingMode === 'panel'
+            ? doc.pvcPanelPriceDisplay || 'No data'
+            : doc.autoAverageUnitPriceDisplay ||
+              formatPriceWithUnit(doc.autoAverageUnitPrice, unit)
         const selectedSupplierUnitPriceDisplay =
           doc.selectedSupplierUnitPriceDisplay ||
           formatPriceWithUnit(doc.selectedSupplierUnitPrice, unit)
@@ -198,6 +256,10 @@ export const PricingItems: CollectionConfig = {
         let unit = data.unit ?? originalDoc?.unit
         let unitQuantity = data.unitQuantity ?? originalDoc?.unitQuantity
         const customUnit = data.customUnit ?? originalDoc?.customUnit
+        const pvcPricingMode =
+          data.pvcPricingMode ?? originalDoc?.pvcPricingMode ?? 'panel'
+        const unitConversionFactor =
+          data.unitConversionFactor ?? originalDoc?.unitConversionFactor
         const bagWeightKg = data.bagWeightKg ?? originalDoc?.bagWeightKg
         const selectedSupplierID = getRelationshipID(
           data.selectedSupplierPriceSource ??
@@ -237,6 +299,47 @@ export const PricingItems: CollectionConfig = {
         if (pricingKey === 'mortar' && unit === 'per_bag' && typeof bagWeightKg !== 'number') {
           data.bagWeightKg = 20
         }
+        if (unit === 'custom') {
+          if (
+            typeof unitConversionFactor !== 'number' ||
+            !Number.isFinite(unitConversionFactor) ||
+            unitConversionFactor <= 0
+          ) {
+            data.unitConversionNote =
+              'Custom unit needs a conversion factor before it can participate accurately in calculations.'
+          }
+        } else {
+          data.unitConversionFactor = null
+          data.unitConversionNote = null
+        }
+        if (pricingKey === 'pvc_fence') {
+          data.pvcPricingMode = pvcPricingMode
+          if (pvcPricingMode === 'per_m') {
+            unit = 'm'
+            data.unit = 'm'
+            data.pvcPanelPriceDisplay = ''
+            data.pvcPanelPriceWarning = ''
+          } else {
+            unit = 'each'
+            data.unit = 'each'
+            const defaultPanelSize = data.pvcDefaultPanelSize ?? originalDoc?.pvcDefaultPanelSize ?? '6ft'
+            data.pvcDefaultPanelSize = defaultPanelSize
+            const normalizedPanelPrices = normalizePvcPanelPrices(
+              readPvcPanelPrices(data.pvcPanelPrices ?? originalDoc?.pvcPanelPrices),
+              data.manualUnitPrice ?? originalDoc?.manualUnitPrice,
+            )
+            data.pvcPanelPriceDisplay = formatPvcPanelPriceSummary(normalizedPanelPrices.prices)
+            data.pvcPanelPriceWarning = normalizedPanelPrices.warning
+            const panelPriceField = pvcPanelPriceFieldName(defaultPanelSize)
+            const panelPrice = panelPriceField
+              ? normalizedPanelPrices.prices[defaultPanelSize]
+              : undefined
+
+            if (typeof panelPrice === 'number') {
+              data.manualUnitPrice = panelPrice
+            }
+          }
+        }
         const displayUnit = resolveUnitForDisplay(unit, customUnit)
 
         data.manualUnitPriceDisplay = formatPriceWithUnit(
@@ -244,6 +347,21 @@ export const PricingItems: CollectionConfig = {
           displayUnit,
           unitQuantity,
         )
+        if (pricingKey === 'pvc_fence') {
+          data.manualUnitPriceDisplay = formatPvcPriceDisplay({
+            mode: pvcPricingMode,
+            panelPrices: readPvcPanelPrices(data.pvcPanelPrices ?? originalDoc?.pvcPanelPrices),
+            unitPrice: data.manualUnitPrice ?? originalDoc?.manualUnitPrice,
+          })
+          data.autoAverageUnitPriceDisplay =
+            pvcPricingMode === 'panel'
+              ? data.pvcPanelPriceDisplay || 'No data'
+              : formatPriceWithUnit(data.autoAverageUnitPrice ?? originalDoc?.autoAverageUnitPrice, 'm')
+          data.effectiveUnitPriceDisplay =
+            pvcPricingMode === 'panel'
+              ? data.pvcPanelPriceDisplay || 'No data'
+              : formatPriceWithUnit(data.effectiveUnitPrice ?? originalDoc?.effectiveUnitPrice, 'm')
+        }
         data.autoAverageUnitPriceDisplay = formatPriceWithUnit(
           data.autoAverageUnitPrice ?? originalDoc?.autoAverageUnitPrice,
           displayUnit,
@@ -286,6 +404,11 @@ export const PricingItems: CollectionConfig = {
             data.unit = source.unit ?? unit
             data.unitQuantity = source.unitQuantity ?? data.unitQuantity
             data.customUnit = source.customUnit ?? data.customUnit
+            data.pvcPricingMode = source.pvcPricingMode ?? data.pvcPricingMode
+            data.unitConversionFactor =
+              source.unitConversionFactor ?? data.unitConversionFactor
+            data.unitConversionNote =
+              source.unitConversionNote ?? data.unitConversionNote
             data.bagWeightKg = source.bagWeightKg ?? data.bagWeightKg
             const sourceDisplayUnit = resolveUnitForDisplay(
               source.unit,
@@ -295,6 +418,7 @@ export const PricingItems: CollectionConfig = {
               normalizeSupplierUnitPrice({
                 pricingKey,
                 unit: source.unit,
+                unitConversionFactor: source.unitConversionFactor,
                 unitQuantity: source.unitQuantity,
                 unitPrice: source.lastPrice,
               }).toFixed(2),
@@ -304,6 +428,14 @@ export const PricingItems: CollectionConfig = {
               sourceDisplayUnit,
               source.unitQuantity,
             )
+            if (pricingKey === 'pvc_fence') {
+              data.selectedSupplierUnitPriceDisplay =
+                source.pvcPricingMode === 'per_m'
+                  ? formatPriceWithUnit(source.lastPrice, 'm') || 'No data'
+                  : source.pvcPanelPriceDisplay || 'No data'
+              data.pvcPanelPriceDisplay = source.pvcPanelPriceDisplay ?? data.pvcPanelPriceDisplay
+              data.pvcPanelPrices = source.pvcPanelPrices ?? data.pvcPanelPrices
+            }
             data.finalPriceSourceDisplay = getFinalPriceSourceDisplay({
               priceSource,
               selectedSupplierName: source.supplierName,
@@ -464,12 +596,46 @@ export const PricingItems: CollectionConfig = {
       min: 1,
     },
     {
+      name: 'pvcPricingMode',
+      type: 'select',
+      defaultValue: 'panel',
+      options: [
+        { label: 'Panel size prices', value: 'panel' },
+        { label: 'Per metre', value: 'per_m' },
+      ],
+      admin: {
+        condition: (_, siblingData) => siblingData.key === 'pvc_fence',
+        description:
+          'Choose whether PVC is calculated from fixed panel sizes or actual metre length.',
+      },
+    },
+    {
       name: 'customUnit',
       type: 'text',
       admin: {
         condition: (_, siblingData) =>
           siblingData.priceSource !== 'supplier' && siblingData.unit === 'custom',
         description: 'Enter the custom unit label used for display and pricing.',
+      },
+    },
+    {
+      name: 'unitConversionFactor',
+      type: 'number',
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.priceSource !== 'supplier' && siblingData.unit === 'custom',
+        description:
+          'How many calculator base units one custom unit covers. Example: box of 10 bricks = 10; 2.4m panel = 2.4.',
+      },
+      min: 0,
+    },
+    {
+      name: 'unitConversionNote',
+      type: 'textarea',
+      admin: {
+        condition: (_, siblingData) => siblingData.unit === 'custom',
+        description:
+          'AI or admin note explaining how this custom unit is converted for calculation.',
       },
     },
     {
@@ -487,7 +653,9 @@ export const PricingItems: CollectionConfig = {
       name: 'manualUnitPrice',
       type: 'number',
       admin: {
-        condition: (_, siblingData) => siblingData.priceSource === 'manual',
+        condition: (_, siblingData) =>
+          siblingData.priceSource === 'manual' &&
+          (siblingData.key !== 'pvc_fence' || siblingData.pvcPricingMode === 'per_m'),
         description:
           'Company controlled price. Used when Price Source is Manual price.',
       },
@@ -497,8 +665,90 @@ export const PricingItems: CollectionConfig = {
       name: 'manualUnitPriceDisplay',
       type: 'text',
       admin: {
-        condition: (_, siblingData) => siblingData.priceSource === 'manual',
+        condition: (_, siblingData) =>
+          siblingData.priceSource === 'manual' &&
+          (siblingData.key !== 'pvc_fence' || siblingData.pvcPricingMode === 'per_m'),
         description: 'Manual price with unit.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'pvcDefaultPanelSize',
+      type: 'select',
+      defaultValue: '6ft',
+      options: [
+        { label: '4ft', value: '4ft' },
+        { label: '5ft', value: '5ft' },
+        { label: '6ft', value: '6ft' },
+        { label: '8ft', value: '8ft' },
+        { label: '10ft', value: '10ft' },
+      ],
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'pvc_fence' && siblingData.pvcPricingMode !== 'per_m',
+        description:
+          'Default panel size used for the summary unit price. Cost calculation still selects the right panel per bay.',
+      },
+    },
+    {
+      name: 'pvcPanelPrices',
+      type: 'group',
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'pvc_fence' && siblingData.pvcPricingMode !== 'per_m',
+        description:
+          'PVC fence is priced per panel. Enter each default panel size price here.',
+      },
+      fields: [
+        {
+          name: 'fourFt',
+          type: 'number',
+          label: '4ft panel price',
+          min: 0,
+        },
+        {
+          name: 'fiveFt',
+          type: 'number',
+          label: '5ft panel price',
+          min: 0,
+        },
+        {
+          name: 'sixFt',
+          type: 'number',
+          label: '6ft panel price',
+          min: 0,
+        },
+        {
+          name: 'eightFt',
+          type: 'number',
+          label: '8ft panel price',
+          min: 0,
+        },
+        {
+          name: 'tenFt',
+          type: 'number',
+          label: '10ft panel price',
+          min: 0,
+        },
+      ],
+    },
+    {
+      name: 'pvcPanelPriceDisplay',
+      type: 'text',
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'pvc_fence' && siblingData.pvcPricingMode !== 'per_m',
+        description: 'Effective PVC panel prices after filling missing sizes.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'pvcPanelPriceWarning',
+      type: 'textarea',
+      admin: {
+        condition: (_, siblingData) =>
+          siblingData.key === 'pvc_fence' && siblingData.pvcPricingMode !== 'per_m',
+        description: 'Shown when one or more PVC panel sizes are using fallback prices.',
         readOnly: true,
       },
     },

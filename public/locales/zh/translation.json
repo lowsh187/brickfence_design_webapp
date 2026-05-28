@@ -72,6 +72,7 @@
     "description": "配置真实砖柱，以及砖柱之间的墙段。",
     "timberFence": "柱间填充",
     "timberFenceHint": "选择砖柱之间、墙体上方的填充方式。",
+    "timberFenceStyle": "木栅栏可视化样式",
     "size": "砖柱规格",
     "height": "砖柱高度",
     "heightHint": "设置砖柱的整体高度，最大砖柱高度为 {{max}} 米。",
@@ -79,6 +80,8 @@
     "spacing": "砖柱间距",
     "spacingHint": "中心距会按 0.24 米砖模数吸附，且不得超过 3.0 米。",
     "spacingError": "砖柱中心距不能超过 3.0 米。",
+    "pvcHeightWarning": "PVC 填充要求砖柱至少比墙体高 {{reveal}} 米。请将砖柱高度增加到至少 {{minimum}} 米后继续。",
+    "verticalTimberHeightWarning": "竖向木板要求砖柱至少比墙体高 {{reveal}} 米。请将砖柱高度增加到至少 {{minimum}} 米，或切换为横向木条。",
     "hiddenSizeUnavailable": "当前 stack bond 模型中的隐藏砖柱只定义了 2砖 x 1砖 和 2砖 x 2砖。",
     "stackHiddenSizeUnavailable": "当前 stack bond 模型中的隐藏砖柱只定义了 2砖 x 1砖 和 2砖 x 2砖。",
     "stretcherHiddenSizeUnavailable": "当前 stretcher bond 模型中的隐藏砖柱遵循表格已定义的尺寸。",
@@ -115,6 +118,14 @@
       "none": "只显示砖墙和砖柱。",
       "timber": "在墙体上方、相邻砖柱之间绘制两条黄色横线。",
       "pvc": "在墙体上方、相邻砖柱之间绘制两条浅色 PVC 横线。"
+    },
+    "timberFenceStyleOptions": {
+      "rails": "横向木条",
+      "verticalPalings": "竖向木板"
+    },
+    "timberFenceStyleDesc": {
+      "rails": "使用当前的横向木条可视化。",
+      "verticalPalings": "显示带尖顶造型的竖向木板。"
     }
   },
   "cutBricks": {
@@ -162,6 +173,7 @@
     "mortarCost": "砂浆费用",
     "labourCost": "人工费用",
     "infillCost": "柱间填充费用",
+    "pvcPanels": "使用的 PVC 栏板",
     "unitPrice": "单价",
     "totalCost": "预估总费用",
     "defaultPricingNotice": "当前使用默认价格；公司价格数据库配置完成后会自动使用后台价格。",

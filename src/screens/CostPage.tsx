@@ -6,6 +6,7 @@ import { useFormContext } from '../context/FormContext'
 import { useAppNavigate } from '../navigation'
 import {
   calculateCostPricing,
+  calculatePvcFencePanelCounts,
   defaultPricingMap,
   formatCurrency,
   type CostPricing,
@@ -61,6 +62,7 @@ interface SavedQuote {
   pierSpacing: string
   cutBricks: string
   timberFence: string
+  timberFenceStyle?: string
   brickSizeMode?: string
   brickLength?: string
   brickWidth?: string
@@ -288,6 +290,7 @@ function computeMetrics(params: {
   brickDimensions: BrickDimensions
 }): {
   brickCount: number
+  infillBayWidthsM: number[]
   mortarVolumeM3: number
   renderedLengthM: number
   renderedHeightM: number
@@ -299,6 +302,7 @@ function computeMetrics(params: {
   if (!bond || wallL <= 0 || wallHmm <= 0) {
     return {
       brickCount: 0,
+      infillBayWidthsM: [],
       mortarVolumeM3: 0,
       renderedLengthM: 0,
       renderedHeightM: 0,
@@ -586,6 +590,9 @@ function computeMetrics(params: {
 
   return {
     brickCount: totalBrickCount,
+    infillBayWidthsM: wallSegments
+      .map((segment) => segment.width / 1000)
+      .filter((widthM) => widthM > 0),
     mortarVolumeM3,
     renderedLengthM: renderedLengthMm / 1000,
     renderedHeightM: renderedH / 1000,
@@ -595,7 +602,7 @@ function computeMetrics(params: {
 function upsertQuote(quote: SavedQuote) {
   try {
     const existing: SavedQuote[] = JSON.parse(
-      localStorage.getItem('fence-calculator-quotes') || '[]',
+      sessionStorage.getItem('fence-calculator-quotes') || '[]',
     )
     const idx = existing.findIndex(
       (q) => q.name.toLowerCase() === quote.name.toLowerCase(),
@@ -605,7 +612,7 @@ function upsertQuote(quote: SavedQuote) {
     } else {
       existing.push(quote)
     }
-    localStorage.setItem('fence-calculator-quotes', JSON.stringify(existing))
+    sessionStorage.setItem('fence-calculator-quotes', JSON.stringify(existing))
   } catch {
     // ignore
   }
@@ -637,6 +644,7 @@ function createSavedQuote(params: {
     pierSpacing: params.state.pierSpacing,
     cutBricks: params.state.cutBricks,
     timberFence: params.state.timberFence,
+    timberFenceStyle: params.state.timberFenceStyle,
     brickSizeMode: params.state.brickSizeMode,
     brickLength: params.state.brickLength,
     brickWidth: params.state.brickWidth,
@@ -707,8 +715,17 @@ export default function CostPage() {
     renderedHeightM: metrics.renderedHeightM,
     bondPattern: state.bondPattern,
     timberFence: timberFenceSafe,
+    infillBayWidthsM: metrics.infillBayWidthsM,
     prices,
   })
+  const pvcPanelCounts =
+    timberFenceSafe === 'pvc' && prices.pvc_fence.pvcPricingMode !== 'per_m'
+      ? calculatePvcFencePanelCounts(metrics.infillBayWidthsM)
+      : {}
+  const pvcPanelSummary = Object.entries(pvcPanelCounts)
+    .filter(([, count]) => typeof count === 'number' && count > 0)
+    .map(([size, count]) => `${size} x ${count}`)
+    .join(', ')
 
   useEffect(() => {
     let cancelled = false
@@ -847,6 +864,9 @@ export default function CostPage() {
               value={formatCurrency(pricing.infillCost, pricing.currency)}
             />
           )}
+          {timberFenceSafe === 'pvc' && pvcPanelSummary && (
+            <Row label={t('cost.pvcPanels')} value={pvcPanelSummary} />
+          )}
           <div className="flex justify-between px-6 py-4 bg-primary/5">
             <span className="font-bold text-text">{t('cost.totalCost')}</span>
             <span className="font-bold text-primary text-lg">
@@ -912,6 +932,7 @@ export default function CostPage() {
         pierSpacingM={parseFloat(state.pierSpacing) || 0}
         cutBricks={cutBricksSafe}
         timberFence={timberFenceSafe}
+        timberFenceStyle={state.timberFenceStyle || undefined}
         brickDimensions={brickDimensions}
         showDiagram={length > 0 && height > 0}
       />
@@ -940,7 +961,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function nameExistsInStorage(name: string): boolean {
   try {
     const quotes: SavedQuote[] = JSON.parse(
-      localStorage.getItem('fence-calculator-quotes') || '[]',
+      sessionStorage.getItem('fence-calculator-quotes') || '[]',
     )
     return quotes.some((q) => q.name.toLowerCase() === name.trim().toLowerCase())
   } catch {
