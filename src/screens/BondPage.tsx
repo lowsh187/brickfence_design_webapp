@@ -71,6 +71,11 @@ export default function BondPage() {
   const showPierSpacing = hasPierType
   const showInfill = hasPierType
   const spacingTooWide = showPierSpacing && pierSpacing > 3
+  const pierSpacingAdjusted =
+    showPierSpacing &&
+    state.cutBricks === 'notAllowed' &&
+    pierSpacing > 0 &&
+    !spacingTooWide
   const pierHeightAtMinimum = showPierHeight && height > 0 && pierHeight <= height
   const pvcFenceHeightInvalid =
     state.timberFence === 'pvc' &&
@@ -418,6 +423,11 @@ export default function BondPage() {
             <p className="mt-1.5 text-xs text-text-muted">{t('pier.spacingHint')}</p>
             {spacingTooWide && (
               <p className="mt-1.5 text-xs text-red-500">{t('pier.spacingError')}</p>
+            )}
+            {pierSpacingAdjusted && (
+              <p className="mt-1.5 text-xs text-amber-600">
+                {t('pier.spacingAdjustedWarning')}
+              </p>
             )}
           </div>
         )}

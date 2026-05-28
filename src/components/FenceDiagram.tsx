@@ -89,6 +89,60 @@ interface StructureLayout {
   wallSegments: WallSegment[]
 }
 
+function noCutPierBayLayout(
+  bond: NonNullable<ReturnType<typeof getBond>>,
+  targetWallW: number,
+  wallH: number,
+  pierWidth: number,
+  bayCount: number,
+  dimensions: BrickDimensions,
+): StructureLayout | null {
+  const pierCount = Math.max(2, bayCount + 1)
+  const targetBayWidth = (targetWallW - pierWidth * pierCount) / bayCount
+  const snappedBay = tryGenerateNoCutBond(
+    bond,
+    Math.max(dimensions.width, targetBayWidth),
+    wallH,
+    dimensions,
+  )
+
+  if (!snappedBay) return null
+
+  const piers: PierLayout[] = []
+  const wallSegments: WallSegment[] = []
+  let cursor = 0
+
+  for (let i = 0; i < pierCount; i++) {
+    piers.push({
+      center: cursor + pierWidth / 2,
+      left: cursor,
+      width: pierWidth,
+    })
+    cursor += pierWidth
+
+    if (i < bayCount) {
+      wallSegments.push({
+        left: cursor,
+        width: snappedBay.wallW,
+        top: 0,
+        height: snappedBay.wallH,
+        bricks: snappedBay.bricks.map((brick) => ({
+          ...brick,
+          x: brick.x + cursor,
+        })),
+      })
+      cursor += snappedBay.wallW
+    }
+  }
+
+  return {
+    renderedW: cursor,
+    renderedH: snappedBay.wallH,
+    piers,
+    wallSegments,
+  }
+}
+
 interface IndexedPierLayout extends PierLayout {
   index: number
 }
@@ -256,7 +310,7 @@ function generatePierFace(
 function buildNoCutSearchOffsets(limit: number, mortar: number): number[] {
   const offsets = [0]
   for (let step = mortar; step <= limit; step += mortar) {
-    offsets.push(step, -step)
+    offsets.push(-step, step)
   }
   return offsets
 }
@@ -552,6 +606,19 @@ export default function FenceDiagram({
     }
 
     if (useStackPier) {
+      if (cutBricksSafe === 'notAllowed') {
+        const noCutLayout = noCutPierBayLayout(
+          bond,
+          wallL,
+          wallHmm,
+          pierSpec.frontWidth,
+          bayCount,
+          dimensions,
+        )
+
+        if (noCutLayout) return noCutLayout
+      }
+
       const result = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
       const renderedW = result.wallW
       const piers = buildStackAlignedPierLayouts(
@@ -687,44 +754,16 @@ export default function FenceDiagram({
     }
 
     if (cutBricksSafe === 'notAllowed') {
-      const targetBayWidth = Math.max(dimensions.width, snappedRequestedSpacingMm - pierSpec.frontWidth)
-      const snappedBay = tryGenerateNoCutBond(bond, targetBayWidth, wallHmm, dimensions)
+      const noCutLayout = noCutPierBayLayout(
+        bond,
+        wallL,
+        wallHmm,
+        pierSpec.frontWidth,
+        bayCount,
+        dimensions,
+      )
 
-      if (snappedBay) {
-        const piers: PierLayout[] = []
-        const wallSegments: WallSegment[] = []
-        let cursor = 0
-
-        for (let i = 0; i <= bayCount; i++) {
-          piers.push({
-            center: cursor + pierSpec.frontWidth / 2,
-            left: cursor,
-            width: pierSpec.frontWidth,
-          })
-          cursor += pierSpec.frontWidth
-
-          if (i < bayCount) {
-            wallSegments.push({
-              left: cursor,
-              width: snappedBay.wallW,
-              top: 0,
-              height: snappedBay.wallH,
-              bricks: snappedBay.bricks.map((brick) => ({
-                ...brick,
-                x: brick.x + cursor,
-              })),
-            })
-            cursor += snappedBay.wallW
-          }
-        }
-
-        return {
-          renderedW: cursor,
-          renderedH: snappedBay.wallH,
-          piers,
-          wallSegments,
-        }
-      }
+      if (noCutLayout) return noCutLayout
     }
 
     const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })

@@ -298,13 +298,13 @@ export interface SupplierPriceSource {
     | 'timber_fence'
     | 'pvc_fence';
   /**
-   * Required for manual supplier sources. URL sources detect this automatically, but failed URL sources can be corrected manually.
+   * Required for manual supplier sources. URL sources detect this automatically, but existing sources can be corrected manually.
    */
   unit?:
     | ('each' | 'm3' | 'm2' | 'm' | 'per_quantity' | 'per_1000' | 'per_brick' | 'per_bag' | '20kg_bag' | 'custom')
     | null;
   /**
-   * Manual fallback only. URL sources detect the PVC pricing mode automatically.
+   * URL sources detect this automatically, but existing sources can be corrected manually.
    */
   pvcPricingMode?: ('panel' | 'per_m') | null;
   /**

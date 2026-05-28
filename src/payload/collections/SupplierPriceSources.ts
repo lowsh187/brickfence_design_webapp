@@ -319,10 +319,9 @@ export const SupplierPriceSources: CollectionConfig = {
         return options.filter((option) => allowedUnits.has(optionValue(option)))
       },
       admin: {
-        condition: (_, siblingData) =>
-          !siblingData.productUrl || siblingData.lastStatus === 'failed',
+        condition: () => true,
         description:
-          'Required for manual supplier sources. URL sources detect this automatically, but failed URL sources can be corrected manually.',
+          'Required for manual supplier sources. URL sources detect this automatically, but existing sources can be corrected manually.',
       },
       required: true,
     },
@@ -335,11 +334,9 @@ export const SupplierPriceSources: CollectionConfig = {
         { label: 'Per metre', value: 'per_m' },
       ],
       admin: {
-        condition: (_, siblingData) =>
-          siblingData.pricingKey === 'pvc_fence' &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+        condition: (_, siblingData) => siblingData.pricingKey === 'pvc_fence',
         description:
-          'Manual fallback only. URL sources detect the PVC pricing mode automatically.',
+          'URL sources detect this automatically, but existing sources can be corrected manually.',
       },
     },
     {
@@ -349,8 +346,7 @@ export const SupplierPriceSources: CollectionConfig = {
       admin: {
         condition: (_, siblingData) =>
           siblingData.pricingKey === 'standard_brick' &&
-          siblingData.unit === 'per_quantity' &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+          siblingData.unit === 'per_quantity',
         description: 'Number of bricks covered by this supplier price.',
       },
       min: 1,
@@ -439,8 +435,7 @@ export const SupplierPriceSources: CollectionConfig = {
       type: 'text',
       admin: {
         condition: (_, siblingData) =>
-          siblingData.unit === 'custom' &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+          siblingData.unit === 'custom',
         description: 'Enter the custom unit label used for display and pricing.',
       },
     },
@@ -449,8 +444,7 @@ export const SupplierPriceSources: CollectionConfig = {
       type: 'number',
       admin: {
         condition: (_, siblingData) =>
-          siblingData.unit === 'custom' &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+          siblingData.unit === 'custom',
         description:
           'How many calculator base units one custom unit covers. AI fills this for URL sources when possible.',
       },
@@ -472,8 +466,7 @@ export const SupplierPriceSources: CollectionConfig = {
       admin: {
         condition: (_, siblingData) =>
           siblingData.pricingKey === 'mortar' &&
-          siblingData.unit === 'per_bag' &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+          siblingData.unit === 'per_bag',
         description: 'Bag weight in kilograms. Used when this source is priced per bag.',
       },
       min: 0,
@@ -499,9 +492,8 @@ export const SupplierPriceSources: CollectionConfig = {
       type: 'number',
       admin: {
         condition: (_, siblingData) =>
-          (siblingData.pricingKey !== 'pvc_fence' ||
-            siblingData.pvcPricingMode === 'per_m') &&
-          (!siblingData.productUrl || siblingData.lastStatus === 'failed'),
+          siblingData.pricingKey !== 'pvc_fence' ||
+          siblingData.pvcPricingMode === 'per_m',
         description:
           'Required for manual supplier sources. Failed URL sources can use this as a manual fallback price.',
       },

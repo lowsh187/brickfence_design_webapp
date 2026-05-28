@@ -99,7 +99,7 @@ function buildPierSpecs(dimensions: BrickDimensions): Record<string, PierSpec> {
 function buildNoCutSearchOffsets(limit: number, mortar: number): number[] {
   const offsets = [0]
   for (let step = mortar; step <= limit; step += mortar) {
-    offsets.push(step, -step)
+    offsets.push(-step, step)
   }
   return offsets
 }
@@ -158,6 +158,59 @@ function buildStackAlignedPierLayouts(
   }
 
   return layouts
+}
+
+function noCutPierBayLayout(
+  bond: NonNullable<ReturnType<typeof getBond>>,
+  targetWallW: number,
+  wallH: number,
+  pierWidth: number,
+  bayCount: number,
+  dimensions: BrickDimensions,
+): { renderedW: number; renderedH: number; piers: PierLayout[]; wallSegments: WallSegment[] } | null {
+  const pierCount = Math.max(2, bayCount + 1)
+  const targetBayWidth = (targetWallW - pierWidth * pierCount) / bayCount
+  const snappedBay = tryGenerateNoCutBond(
+    bond,
+    Math.max(dimensions.width, targetBayWidth),
+    wallH,
+    dimensions,
+  )
+
+  if (!snappedBay) return null
+
+  const piers: PierLayout[] = []
+  const wallSegments: WallSegment[] = []
+  let cursor = 0
+
+  for (let i = 0; i < pierCount; i++) {
+    piers.push({
+      center: cursor + pierWidth / 2,
+      left: cursor,
+      width: pierWidth,
+    })
+    cursor += pierWidth
+
+    if (i < bayCount) {
+      wallSegments.push({
+        left: cursor,
+        width: snappedBay.wallW,
+        height: snappedBay.wallH,
+        bricks: snappedBay.bricks.map((brick) => ({
+          ...brick,
+          x: brick.x + cursor,
+        })),
+      })
+      cursor += snappedBay.wallW
+    }
+  }
+
+  return {
+    renderedW: cursor,
+    renderedH: snappedBay.wallH,
+    piers,
+    wallSegments,
+  }
 }
 
 function tryGenerateNoCutBond(
@@ -369,44 +422,62 @@ function computeMetrics(params: {
     const bayCount = Math.max(1, Math.ceil(interiorSpan / snappedRequestedSpacingMm))
 
     if (params.bondPattern === 'stack') {
-      const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
-      renderedH = bondResult.wallH
-      piers = buildStackAlignedPierLayouts(
-        bondResult.wallW,
-        pierSpec.frontWidth,
-        bayCount,
-        dimensions.length + dimensions.mortar,
-      )
+      const noCutLayout =
+        cutBricksSafe === 'notAllowed'
+          ? noCutPierBayLayout(
+            bond,
+            wallL,
+            wallHmm,
+            pierSpec.frontWidth,
+            bayCount,
+            dimensions,
+          )
+          : null
 
-      for (let i = 0; i < piers.length - 1; i++) {
-        const current = piers[i]
-        const next = piers[i + 1]
-        const left = current.left + current.width
-        const right = next.left
-        const width = Math.max(0, right - left)
-        if (width <= 0) continue
+      if (noCutLayout) {
+        renderedH = noCutLayout.renderedH
+        piers = noCutLayout.piers
+        wallSegments = noCutLayout.wallSegments
+      } else {
+        const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })
+        renderedH = bondResult.wallH
+        piers = buildStackAlignedPierLayouts(
+          bondResult.wallW,
+          pierSpec.frontWidth,
+          bayCount,
+          dimensions.length + dimensions.mortar,
+        )
 
-        const bricks = bondResult.bricks.flatMap((brick) => {
-          const visibleLeft = Math.max(brick.x, left)
-          const visibleRight = Math.min(brick.x + brick.w, right)
-          const visibleWidth = visibleRight - visibleLeft
-          if (visibleWidth <= 0) return []
+        for (let i = 0; i < piers.length - 1; i++) {
+          const current = piers[i]
+          const next = piers[i + 1]
+          const left = current.left + current.width
+          const right = next.left
+          const width = Math.max(0, right - left)
+          if (width <= 0) continue
 
-          const clipped = visibleWidth !== brick.w || visibleLeft !== brick.x
-          return [{
-            ...brick,
-            x: visibleLeft,
-            w: visibleWidth,
-            type: clipped ? 'adj' : brick.type,
-          }]
-        })
+          const bricks = bondResult.bricks.flatMap((brick) => {
+            const visibleLeft = Math.max(brick.x, left)
+            const visibleRight = Math.min(brick.x + brick.w, right)
+            const visibleWidth = visibleRight - visibleLeft
+            if (visibleWidth <= 0) return []
 
-        wallSegments.push({
-          left,
-          width,
-          height: bondResult.wallH,
-          bricks,
-        })
+            const clipped = visibleWidth !== brick.w || visibleLeft !== brick.x
+            return [{
+              ...brick,
+              x: visibleLeft,
+              w: visibleWidth,
+              type: clipped ? 'adj' : brick.type,
+            }]
+          })
+
+          wallSegments.push({
+            left,
+            width,
+            height: bondResult.wallH,
+            bricks,
+          })
+        }
       }
     } else if (useHiddenNoCutStretcher15x1) {
       const wallInset = dimensions.width + dimensions.mortar
@@ -445,37 +516,19 @@ function computeMetrics(params: {
         })),
       }]
     } else if (cutBricksSafe === 'notAllowed') {
-      const snappedBay = tryGenerateNoCutBond(
+      const noCutLayout = noCutPierBayLayout(
         bond,
-        Math.max(dimensions.width, snappedRequestedSpacingMm - pierSpec.frontWidth),
+        wallL,
         wallHmm,
+        pierSpec.frontWidth,
+        bayCount,
         dimensions,
       )
 
-      if (snappedBay) {
-        let cursor = 0
-        for (let i = 0; i <= bayCount; i++) {
-          piers.push({
-            center: cursor + pierSpec.frontWidth / 2,
-            left: cursor,
-            width: pierSpec.frontWidth,
-          })
-          cursor += pierSpec.frontWidth
-
-          if (i < bayCount) {
-            wallSegments.push({
-              left: cursor,
-              width: snappedBay.wallW,
-              height: snappedBay.wallH,
-              bricks: snappedBay.bricks.map((brick) => ({
-                ...brick,
-                x: brick.x + cursor,
-              })),
-            })
-            cursor += snappedBay.wallW
-          }
-        }
-        renderedH = snappedBay.wallH
+      if (noCutLayout) {
+        renderedH = noCutLayout.renderedH
+        piers = noCutLayout.piers
+        wallSegments = noCutLayout.wallSegments
       }
     } else {
       const bondResult = bond.generate({ wallL, wallH: wallHmm, brickDimensions: dimensions })

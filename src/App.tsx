@@ -82,17 +82,20 @@ function PersistentPreview() {
               {t('diagram.previewTitle')}
             </h3>
             {showDiagram && (
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(true)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:border-primary hover:text-primary transition-colors cursor-pointer"
-                aria-label={t('diagram.expandPreview')}
-                title={t('diagram.expandPreview')}
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <span>{t('diagram.expandPreviewHint')}</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:border-primary hover:text-primary transition-colors cursor-pointer"
+                  aria-label={t('diagram.expandPreview')}
+                  title={t('diagram.expandPreview')}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
           {selectionSummary && (

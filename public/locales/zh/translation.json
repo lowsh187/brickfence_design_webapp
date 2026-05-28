@@ -80,6 +80,7 @@
     "spacing": "砖柱间距",
     "spacingHint": "中心距会按 0.24 米砖模数吸附，且不得超过 3.0 米。",
     "spacingError": "砖柱中心距不能超过 3.0 米。",
+    "spacingAdjustedWarning": "系统会略微调整砖柱位置和墙体长度来避免切砖，并优先尝试缩短，再尝试加长。",
     "pvcHeightWarning": "PVC 填充要求砖柱至少比墙体高 {{reveal}} 米。请将砖柱高度增加到至少 {{minimum}} 米后继续。",
     "verticalTimberHeightWarning": "竖向木板要求砖柱至少比墙体高 {{reveal}} 米。请将砖柱高度增加到至少 {{minimum}} 米，或切换为横向木条。",
     "hiddenSizeUnavailable": "当前 stack bond 模型中的隐藏砖柱只定义了 2砖 x 1砖 和 2砖 x 2砖。",
@@ -146,6 +147,7 @@
     "previewTitle": "墙体预览",
     "awaitingDimensions": "请先输入墙体尺寸以查看预览。",
     "expandPreview": "放大预览",
+    "expandPreviewHint": "点这个放大 preview",
     "zoomIn": "放大",
     "zoomOut": "缩小"
   },

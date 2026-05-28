@@ -80,6 +80,7 @@
     "spacing": "Pier spacing",
     "spacingHint": "Centres are snapped in 0.24m brick modules and must stay at or below 3.0m.",
     "spacingError": "Pier spacing cannot exceed 3.0m centre-to-centre.",
+    "spacingAdjustedWarning": "Pier positions and wall length may be adjusted slightly to keep full bricks without cuts. The system tries shorter lengths before longer ones.",
     "pvcHeightWarning": "PVC infill needs the pier to be at least {{reveal}}m higher than the wall. Increase pier height to at least {{minimum}}m to continue.",
     "verticalTimberHeightWarning": "Vertical timber palings need the pier to be at least {{reveal}}m higher than the wall. Increase pier height to at least {{minimum}}m or switch to horizontal rails.",
     "hiddenSizeUnavailable": "Hidden piers for the current stack-bond model are only defined as 2 bricks x 1 brick or 2 bricks x 2 bricks.",
@@ -146,6 +147,7 @@
     "previewTitle": "Wall Preview",
     "awaitingDimensions": "Enter wall dimensions to see a preview.",
     "expandPreview": "Expand preview",
+    "expandPreviewHint": "Click to enlarge preview",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out"
   },
