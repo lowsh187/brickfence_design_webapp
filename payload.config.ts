@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { Admins } from './src/payload/collections/Admins'
+import { ensureAdminRoles } from './src/payload/adminSecurity'
 import { PricingItems } from './src/payload/collections/PricingItems'
 import { SupplierPriceSources } from './src/payload/collections/SupplierPriceSources'
 import { seedDefaultPricingItems } from './src/payload/seedDefaultPricing'
@@ -43,6 +44,14 @@ if (!payloadSecret) {
 
 export default buildConfig({
   admin: {
+    components: {
+      afterNavLinks: [
+        {
+          path: './src/payload/admin/AdminLogoutButton',
+          exportName: 'AdminLogoutButton',
+        },
+      ],
+    },
     user: Admins.slug,
   },
   bin: [
@@ -63,6 +72,13 @@ export default buildConfig({
     push: shouldPushDatabaseSchema,
   }),
   onInit: async (payload) => {
+    try {
+      await ensureAdminRoles(payload)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      payload.logger.warn(`Admin role bootstrap skipped: ${message}`)
+    }
+
     try {
       await seedDefaultPricingItems(payload)
     } catch (error) {

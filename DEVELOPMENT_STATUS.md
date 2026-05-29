@@ -10,8 +10,6 @@ This document summarizes the current important development changes, available fe
 - The commit has been pushed to `origin/main`.
 - Validation before push:
   - `npm.cmd run lint`
-  - `npm.cmd run test:run`
-  - Result: 8 test files passed, 40 tests passed.
 
 Local notes:
 
@@ -354,23 +352,6 @@ New/changed fields include:
 
 If schema changes again, regenerate Payload types and ensure database migration/sync is handled before opening admin pages.
 
-## 12. Tests
-
-Current relevant tests:
-
-- `src/context/FormContext.test.tsx`
-- `src/screens/DimensionsPage.test.tsx`
-- `src/screens/BondPage.test.tsx`
-- `src/pricing.test.ts`
-- `src/supplierPriceAI.test.ts`
-- `src/bonds/english.test.ts`
-
-Current full test status:
-
-- `npm.cmd run test:run`
-- 8 test files passed
-- 40 tests passed
-
 ## Known Follow-Up Items
 
 1. Improve PVC fence supplier parsing.
@@ -389,7 +370,7 @@ Current full test status:
    - Admin schema fields were changed.
    - Ensure the deployed database has columns such as `bag_weight_kg`, `unit_quantity`, and related display fields before admin collection pages are used.
 
-5. Extend supplier parser tests.
-   - Add fixture-based tests for pages with related products.
-   - Add tests for `per 500`, `per 1000`, `per bag`, and PVC panel length conversion.
+5. Improve verification coverage when parser behavior changes.
+   - Re-check pages with related products.
+   - Re-check `per 500`, `per 1000`, `per bag`, and PVC panel length conversion cases after parser updates.
 
