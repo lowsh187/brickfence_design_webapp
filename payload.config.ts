@@ -30,17 +30,6 @@ loadLocalEnv()
 
 const databaseUrl = process.env.DATABASE_URL
 const payloadSecret = process.env.PAYLOAD_SECRET
-const isPayloadSchemaBootstrap =
-  process.env.PAYLOAD_DB_PUSH === 'true' &&
-  process.env.NODE_ENV === 'production' &&
-  process.env.NEXT_PHASE !== 'phase-production-build'
-
-// Payload's Postgres adapter only pushes schemas outside production. On a fresh
-// hosted database, PAYLOAD_DB_PUSH=true is our one-time bootstrap switch.
-if (isPayloadSchemaBootstrap) {
-  process.env.NODE_ENV = 'development'
-}
-
 const shouldPushDatabaseSchema =
   process.env.PAYLOAD_DB_PUSH === 'true' || process.env.NODE_ENV !== 'production'
 
@@ -56,6 +45,12 @@ export default buildConfig({
   admin: {
     user: Admins.slug,
   },
+  bin: [
+    {
+      key: 'bootstrap:schema',
+      scriptPath: resolve(process.cwd(), 'scripts/bootstrapPayloadSchema.mjs'),
+    },
+  ],
   collections: [
     Admins,
     PricingItems,

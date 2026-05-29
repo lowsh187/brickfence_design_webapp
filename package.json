@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build",
+    "build": "payload bootstrap:schema && next build",
     "lint": "eslint .",
+    "payload:bootstrap": "payload bootstrap:schema",
     "test": "vitest",
     "test:run": "vitest run",
     "preview": "next start"
