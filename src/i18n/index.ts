@@ -18,7 +18,7 @@ i18n
       loadPath: '/locales/{{lng}}/translation.json',
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       caches: ['localStorage'],
       lookupLocalStorage: 'fence-calculator-lang',
     },

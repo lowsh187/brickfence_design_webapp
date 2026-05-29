@@ -430,13 +430,7 @@ Build:
 npm run build
 ```
 
-Tests:
-
 测试：
-
-```cmd
-npm run test:run
-```
 
 Lint:
 

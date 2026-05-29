@@ -126,6 +126,20 @@ export interface AdminAuthOperations {
 export interface Admin {
   id: number;
   name?: string | null;
+  /**
+   * Super admins can manage other admin accounts. Regular admins can manage content but cannot manage admin roles.
+   */
+  role?: ('super-admin' | 'admin') | null;
+  /**
+   * What is your favorite animal?
+   */
+  securityQuestionAnimalAnswer?: string | null;
+  /**
+   * What is your favorite food?
+   */
+  securityQuestionFoodAnswer?: string | null;
+  securityQuestionAnimalHash?: string | null;
+  securityQuestionFoodHash?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -475,6 +489,11 @@ export interface PayloadMigration {
  */
 export interface AdminsSelect<T extends boolean = true> {
   name?: T;
+  role?: T;
+  securityQuestionAnimalAnswer?: T;
+  securityQuestionFoodAnswer?: T;
+  securityQuestionAnimalHash?: T;
+  securityQuestionFoodHash?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;

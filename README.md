@@ -40,41 +40,7 @@ Open the local URL shown in the terminal, usually `http://localhost:5173/`.
 | `npm run build` | Build the production bundle into `dist/` |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
-| `npm run test` | Start Vitest in watch mode |
-| `npm run test:run` | Run the full automated test suite once |
 | `npm run deploy` | Build and deploy to GitHub Pages |
-
-### Running Tests
-
-Install dependencies first:
-
-```bash
-npm install
-```
-
-Run all tests once:
-
-```bash
-npm run test:run
-```
-
-Run tests in watch mode during development:
-
-```bash
-npm run test
-```
-
-### Current Test Coverage
-
-The current automated test suite covers:
-
-- `brickDimensions.ts`
-- `stack.ts`
-- `FormContext.tsx`
-- `DimensionsPage.tsx`
-- `BondPage.tsx`
-
-Detailed test cases are documented in [TEST_CASES.md](./TEST_CASES.md).
 
 ### Tech Stack
 
@@ -85,8 +51,6 @@ Detailed test cases are documented in [TEST_CASES.md](./TEST_CASES.md).
 - react-router-dom
 - react-konva
 - react-i18next
-- Vitest
-- Testing Library
 
 ### Troubleshooting
 
@@ -104,7 +68,7 @@ If the app shows a blank screen locally:
 - Node.js v22
 - npm
 
-如果你使用 `nvm`，可以执行：
+如果你使用 `nvm`：
 
 ```bash
 nvm install 22
@@ -121,7 +85,7 @@ npm install
 npm run dev
 ```
 
-然后在浏览器打开终端中显示的本地地址，一般是 `http://localhost:5173/`。
+然后在浏览器打开终端显示的本地地址，通常是 `http://localhost:5173/`。
 
 ### 常用命令
 
@@ -131,38 +95,23 @@ npm run dev
 | `npm run build` | 构建生产版本到 `dist/` |
 | `npm run preview` | 本地预览生产版本 |
 | `npm run lint` | 运行 ESLint |
-| `npm run test` | 以监听模式运行 Vitest |
-| `npm run test:run` | 一次性运行全部自动化测试 |
 | `npm run deploy` | 构建并部署到 GitHub Pages |
 
-### 如何运行测试
+### 技术栈
 
-先安装依赖：
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS v4
+- react-router-dom
+- react-konva
+- react-i18next
 
-```bash
-npm install
-```
+### 排查建议
 
-一次性执行全部测试：
+如果本地页面显示空白：
 
-```bash
-npm run test:run
-```
-
-开发过程中持续监听测试：
-
-```bash
-npm run test
-```
-
-### 当前测试覆盖范围
-
-当前自动化测试已经覆盖：
-
-- `brickDimensions.ts`
-- `stack.ts`
-- `FormContext.tsx`
-- `DimensionsPage.tsx`
-- `BondPage.tsx`
-
-更详细的 test case 记录见 [TEST_CASES.md](./TEST_CASES.md)。
+- 确认开发服务器已经通过 `npm run dev` 启动
+- 打开浏览器开发者工具检查控制台报错
+- 清除浏览器缓存后刷新
+- 如果是浏览器兼容问题，尝试更换浏览器
