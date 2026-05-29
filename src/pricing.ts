@@ -2,13 +2,19 @@ export const DEFAULT_PRICING_ITEMS = {
   standard_brick: {
     name: 'Standard brick',
     unit: 'each',
-    unitPrice: 1.35,
+    unitPrice: 1,
+    currency: 'AUD',
+  },
+  custom_brick: {
+    name: 'Custom brick',
+    unit: 'each',
+    unitPrice: 1,
     currency: 'AUD',
   },
   mortar: {
     name: 'Mortar',
     unit: 'per_bag',
-    unitPrice: 12,
+    unitPrice: 10,
     bagWeightKg: 20,
     currency: 'AUD',
   },
@@ -60,17 +66,29 @@ export const DEFAULT_PRICING_ITEMS = {
     unitPrice: 3,
     currency: 'AUD',
   },
-  timber_fence: {
-    name: 'Timber fence infill',
+  timber_screening_slat: {
+    name: 'Timber screening / slat',
     unit: 'm',
-    unitPrice: 55,
+    unitPrice: 4,
+    currency: 'AUD',
+  },
+  timber_picket: {
+    name: 'Timber picket',
+    unit: 'each',
+    unitPrice: 4,
+    currency: 'AUD',
+  },
+  timber_fence: {
+    name: 'Timber fence legacy fallback',
+    unit: 'm',
+    unitPrice: 4,
     currency: 'AUD',
   },
   pvc_fence: {
     name: 'PVC fence',
-    unit: 'each',
-    unitPrice: 148.15,
-    pvcPricingMode: 'panel',
+    unit: 'm',
+    unitPrice: 50,
+    pvcPricingMode: 'per_m',
     pvcPanelPrices: {
       '4ft': 110,
       '5ft': 130,
@@ -118,6 +136,52 @@ export type PvcPricingMode = 'panel' | 'per_m'
 
 export function isPvcFencePricingKey(value: string | null | undefined): value is 'pvc_fence' {
   return value === 'pvc_fence'
+}
+
+export const TIMBER_PRODUCT_TYPES = [
+  { label: 'Screening / slat', value: 'screening_slat' },
+  { label: 'Picket', value: 'picket' },
+] as const
+
+export type TimberProductType = (typeof TIMBER_PRODUCT_TYPES)[number]['value']
+
+export function isTimberFencePricingKey(
+  value: string | null | undefined,
+): value is 'timber_screening_slat' | 'timber_picket' | 'timber_fence' {
+  return value === 'timber_screening_slat' || value === 'timber_picket' || value === 'timber_fence'
+}
+
+export function timberProductTypeForPricingKey(
+  value: string | null | undefined,
+): TimberProductType | undefined {
+  if (value === 'timber_picket') return 'picket'
+  if (value === 'timber_screening_slat' || value === 'timber_fence') return 'screening_slat'
+  return undefined
+}
+
+export function timberProductTypeLabel(value: string | null | undefined): string {
+  if (value === 'picket') return 'picket'
+  if (value === 'screening_slat') return 'screening/slat'
+  return 'timber'
+}
+
+export function inferTimberProductType(
+  value: string | null | undefined,
+): TimberProductType | undefined {
+  if (!value) return undefined
+  const normalized = value.toLowerCase()
+
+  if (/\b(picket|pickets|paling|palings)\b/.test(normalized)) {
+    return 'picket'
+  }
+
+  if (
+    /\b(screening|screen|slat|slats|batten|battens|lath|laths|rail|rails)\b/.test(normalized)
+  ) {
+    return 'screening_slat'
+  }
+
+  return undefined
 }
 
 export function inferPvcFencePanelSize(
@@ -288,13 +352,18 @@ export type CostPricing = {
 export const MORTAR_DRY_MIX_KG_PER_M3 = 2000
 export const DEFAULT_MORTAR_BAG_WEIGHT_KG = 20
 export const MORTAR_WASTAGE_FACTOR = 1.1
+const TIMBER_PICKET_WIDTH_M = 0.07
+const TIMBER_PICKET_GAP_M = 0.06
 
 export function normalizeUnitPrice(item: PricingItem): number {
-  if (item.key === 'standard_brick' && item.unit === 'per_1000') {
+  if ((item.key === 'standard_brick' || item.key === 'custom_brick') && item.unit === 'per_1000') {
     return item.unitPrice / 1000
   }
 
-  if (item.key === 'standard_brick' && item.unit === 'per_quantity') {
+  if (
+    (item.key === 'standard_brick' || item.key === 'custom_brick') &&
+    item.unit === 'per_quantity'
+  ) {
     const quantity =
       typeof item.unitQuantity === 'number' &&
       Number.isFinite(item.unitQuantity) &&
@@ -323,11 +392,15 @@ export function baseCalculationUnitForPricingKey(
 
   switch (pricingKey) {
     case 'standard_brick':
+    case 'custom_brick':
       return 'one brick'
     case 'mortar':
       return 'one mortar pricing unit used by the calculator'
+    case 'timber_screening_slat':
     case 'timber_fence':
       return 'one metre'
+    case 'timber_picket':
+      return 'one picket'
     case 'pvc_fence':
       return 'one panel'
     default:
@@ -341,11 +414,15 @@ export function defaultUnitForPricingKey(
   switch (pricingKey) {
     case 'mortar':
       return 'per_bag'
+    case 'timber_screening_slat':
     case 'timber_fence':
       return 'm'
+    case 'timber_picket':
+      return 'each'
     case 'pvc_fence':
       return 'each'
     case 'standard_brick':
+    case 'custom_brick':
     default:
       if (isLabourPricingKey(pricingKey)) return 'per_brick'
       return 'each'
@@ -472,6 +549,30 @@ export function calculatePvcFenceCost(params: {
   return params.fallbackLengthM * normalizeUnitPrice(params.prices.pvc_fence)
 }
 
+function calculateTimberFenceCost(params: {
+  bayWidthsM: number[]
+  fallbackLengthM: number
+  screeningSlatLengthM?: number
+  timberFenceStyle?: string
+  prices: PricingMap
+}): number {
+  if (params.timberFenceStyle === 'verticalPalings') {
+    const unitPrice = normalizeUnitPrice(params.prices.timber_picket)
+    const bayWidths = params.bayWidthsM.length > 0 ? params.bayWidthsM : [params.fallbackLengthM]
+    const picketStep = TIMBER_PICKET_WIDTH_M + TIMBER_PICKET_GAP_M
+    const picketCount = bayWidths.reduce((sum, bayWidthM) => {
+      const count = Math.max(1, Math.floor((bayWidthM + TIMBER_PICKET_GAP_M) / picketStep))
+
+      return sum + count
+    }, 0)
+
+    return picketCount * unitPrice
+  }
+
+  return (params.screeningSlatLengthM ?? params.fallbackLengthM) *
+    normalizeUnitPrice(params.prices.timber_screening_slat)
+}
+
 export function calculateCostPricing(params: {
   brickCount: number
   mortarVolumeM3: number
@@ -479,6 +580,8 @@ export function calculateCostPricing(params: {
   renderedHeightM: number
   bondPattern: string
   timberFence: string
+  timberFenceStyle?: string
+  timberScreeningSlatLengthM?: number
   infillBayWidthsM?: number[]
   prices: PricingMap
 }): CostPricing {
@@ -489,7 +592,13 @@ export function calculateCostPricing(params: {
   const labourCost = params.brickCount * normalizeUnitPrice(labourPrice)
   const infillCost =
     params.timberFence === 'timber'
-      ? params.renderedLengthM * normalizeUnitPrice(params.prices.timber_fence)
+      ? calculateTimberFenceCost({
+        bayWidthsM: params.infillBayWidthsM ?? [],
+        fallbackLengthM: params.renderedLengthM,
+        screeningSlatLengthM: params.timberScreeningSlatLengthM,
+        timberFenceStyle: params.timberFenceStyle,
+        prices: params.prices,
+      })
       : params.timberFence === 'pvc'
       ? calculatePvcFenceCost({
         bayWidthsM: params.infillBayWidthsM ?? [],

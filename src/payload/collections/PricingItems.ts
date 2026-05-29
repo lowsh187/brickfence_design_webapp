@@ -23,15 +23,18 @@ const ADMIN_LABOUR_PRICING_KEYS = LABOUR_PRICING_KEYS.filter(
 )
 
 const PRICING_KEYS_BY_CATEGORY: Record<string, PricingKey[]> = {
-  brick: ['standard_brick'],
+  brick: ['standard_brick', 'custom_brick'],
   mortar: ['mortar'],
   labour: [...ADMIN_LABOUR_PRICING_KEYS],
-  infill: ['timber_fence', 'pvc_fence'],
+  infill: ['timber_screening_slat', 'timber_picket', 'pvc_fence'],
 }
 
 const UNITS_BY_PRICING_KEY: Partial<Record<PricingKey, string[]>> = {
   standard_brick: ['each', 'per_quantity'],
+  custom_brick: ['each', 'per_quantity'],
   mortar: ['per_bag', 'm3'],
+  timber_screening_slat: ['m'],
+  timber_picket: ['each'],
   timber_fence: ['m'],
   pvc_fence: ['each', 'm'],
 }
@@ -277,7 +280,7 @@ export const PricingItems: CollectionConfig = {
           data.selectedSupplierPriceSource = null
         }
 
-        if (pricingKey === 'standard_brick' && unit === 'per_1000') {
+        if ((pricingKey === 'standard_brick' || pricingKey === 'custom_brick') && unit === 'per_1000') {
           unit = 'per_quantity'
           unitQuantity = 1000
           data.unit = unit
@@ -289,7 +292,7 @@ export const PricingItems: CollectionConfig = {
           data.unit = unit
         }
         if (
-          pricingKey === 'standard_brick' &&
+          (pricingKey === 'standard_brick' || pricingKey === 'custom_brick') &&
           unit === 'per_quantity' &&
           (typeof unitQuantity !== 'number' || unitQuantity <= 1)
         ) {
@@ -486,6 +489,7 @@ export const PricingItems: CollectionConfig = {
         const allowedPricingKeys = new Set(getAllowedPricingKeys(category))
 
         return options.filter((option) =>
+          optionValue(option) !== 'timber_fence' &&
           allowedPricingKeys.has(optionValue(option) as PricingKey),
         )
       },
@@ -589,7 +593,7 @@ export const PricingItems: CollectionConfig = {
       defaultValue: 1000,
       admin: {
         condition: (_, siblingData) =>
-          siblingData.key === 'standard_brick' &&
+          (siblingData.key === 'standard_brick' || siblingData.key === 'custom_brick') &&
           siblingData.unit === 'per_quantity',
         description: 'Number of bricks covered by this price.',
       },

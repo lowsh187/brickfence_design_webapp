@@ -9,7 +9,10 @@ import {
   formatPriceWithUnit,
   inferPvcFencePanelSize,
   isPvcFencePricingKey,
+  isTimberFencePricingKey,
   normalizePvcPanelPrices,
+  timberProductTypeForPricingKey,
+  timberProductTypeLabel,
   type PvcFencePanelSize,
 } from '../../../pricing'
 import {
@@ -183,6 +186,42 @@ async function fetchAndStoreSupplierPrice(
       isPvcFencePricingKey(source.pricingKey)
         ? scraped.pvcPricingMode ?? source.pvcPricingMode ?? 'panel'
         : undefined
+    const selectedTimberProductType =
+      timberProductTypeForPricingKey(source.pricingKey) ??
+      (source.timberProductType === 'picket' || source.timberProductType === 'screening_slat'
+        ? source.timberProductType
+        : undefined) ??
+      'screening_slat'
+
+    if (
+      isTimberFencePricingKey(source.pricingKey) &&
+      scraped.detectedTimberProductType &&
+      scraped.detectedTimberProductType !== selectedTimberProductType
+    ) {
+      const message =
+        `This URL looks like ${timberProductTypeLabel(scraped.detectedTimberProductType)}, ` +
+        `but this source is set to ${timberProductTypeLabel(selectedTimberProductType)}. ` +
+        'Please double check the supplier URL or timber product type.'
+
+      await payload.update({
+        collection: 'supplier-price-sources',
+        id: source.id,
+        data: {
+          detectedTimberProductType: scraped.detectedTimberProductType,
+          lastFetchedAt: new Date().toISOString(),
+          lastStatus: 'failed',
+          lastError: message,
+          supplierName,
+          timberProductTypeWarning: message,
+        },
+      })
+
+      return {
+        source: supplierName,
+        status: 'failed',
+        error: message,
+      }
+    }
 
     if (isPvcFencePricingKey(source.pricingKey)) {
       if (pvcPricingMode === 'panel') {
@@ -222,7 +261,7 @@ async function fetchAndStoreSupplierPrice(
     const unitConversionNote =
       scraped.unitConversionNote ?? source.unitConversionNote ?? undefined
     if (
-      source.pricingKey === 'standard_brick' &&
+      (source.pricingKey === 'standard_brick' || source.pricingKey === 'custom_brick') &&
       unit === 'each' &&
       scraped.unitPrice > 20 &&
       !scraped.unit
@@ -273,6 +312,11 @@ async function fetchAndStoreSupplierPrice(
         pvcPanelPriceWarning: scrapedPvcPanelPrices
           ? normalizePvcPanelPrices(scrapedPvcPanelPrices).warning
           : undefined,
+        detectedTimberProductType: scraped.detectedTimberProductType,
+        timberProductType: isTimberFencePricingKey(source.pricingKey)
+          ? selectedTimberProductType
+          : undefined,
+        timberProductTypeWarning: null,
         bagWeightKg: scraped.bagWeightKg ?? source.bagWeightKg ?? null,
         supplierName,
       },

@@ -24,6 +24,11 @@ import { readJsonResponse } from '../http'
 
 const PIER_EXTRA_HEIGHT_MM = 180
 const MAX_PIER_SPACING_MM = 3000
+const MIN_INFILL_CLEARANCE_MM = 120
+const INFILL_BOTTOM_GAP_MM = 32
+const INFILL_TOP_GAP_MM = 28
+const INFILL_SLAT_HEIGHT_MM = 42
+const INFILL_SLAT_GAP_MM = 25
 
 interface PierSpec {
   frontWidth: number
@@ -344,6 +349,7 @@ function computeMetrics(params: {
 }): {
   brickCount: number
   infillBayWidthsM: number[]
+  timberScreeningSlatLengthM: number
   mortarVolumeM3: number
   renderedLengthM: number
   renderedHeightM: number
@@ -356,6 +362,7 @@ function computeMetrics(params: {
     return {
       brickCount: 0,
       infillBayWidthsM: [],
+      timberScreeningSlatLengthM: 0,
       mortarVolumeM3: 0,
       renderedLengthM: 0,
       renderedHeightM: 0,
@@ -640,12 +647,23 @@ function computeMetrics(params: {
     renderedLengthExtents.length > 0
       ? Math.max(...renderedLengthExtents)
       : wallL
+  const infillBayWidthsM = wallSegments
+    .map((segment) => segment.width / 1000)
+    .filter((widthM) => widthM > 0)
+  const topRevealMm = Math.max(0, pierHeightMm - renderedH)
+  const infillHeightMm = Math.max(0, topRevealMm - INFILL_BOTTOM_GAP_MM - INFILL_TOP_GAP_MM)
+  const slatStepMm = INFILL_SLAT_HEIGHT_MM + INFILL_SLAT_GAP_MM
+  const screeningSlatRows =
+    topRevealMm >= MIN_INFILL_CLEARANCE_MM && infillHeightMm > 0
+      ? Math.max(1, Math.floor((infillHeightMm + INFILL_SLAT_GAP_MM) / slatStepMm))
+      : 0
+  const timberScreeningSlatLengthM =
+    infillBayWidthsM.reduce((sum, widthM) => sum + widthM, 0) * screeningSlatRows
 
   return {
     brickCount: totalBrickCount,
-    infillBayWidthsM: wallSegments
-      .map((segment) => segment.width / 1000)
-      .filter((widthM) => widthM > 0),
+    infillBayWidthsM,
+    timberScreeningSlatLengthM,
     mortarVolumeM3,
     renderedLengthM: renderedLengthMm / 1000,
     renderedHeightM: renderedH / 1000,
@@ -768,6 +786,8 @@ export default function CostPage() {
     renderedHeightM: metrics.renderedHeightM,
     bondPattern: state.bondPattern,
     timberFence: timberFenceSafe,
+    timberFenceStyle: state.timberFenceStyle || undefined,
+    timberScreeningSlatLengthM: metrics.timberScreeningSlatLengthM,
     infillBayWidthsM: metrics.infillBayWidthsM,
     prices,
   })

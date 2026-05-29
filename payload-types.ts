@@ -154,6 +154,7 @@ export interface PricingItem {
   category: 'brick' | 'mortar' | 'labour' | 'infill';
   key:
     | 'standard_brick'
+    | 'custom_brick'
     | 'mortar'
     | 'stretcher_bond_labour_cost'
     | 'stack_bond_labour_cost'
@@ -162,6 +163,8 @@ export interface PricingItem {
     | 'english_garden_bond_labour_cost'
     | 'flemish_bond_labour_cost'
     | 'flemish_garden_bond_labour_cost'
+    | 'timber_screening_slat'
+    | 'timber_picket'
     | 'timber_fence'
     | 'pvc_fence';
   /**
@@ -287,6 +290,7 @@ export interface SupplierPriceSource {
   supplierName?: string | null;
   pricingKey:
     | 'standard_brick'
+    | 'custom_brick'
     | 'mortar'
     | 'stretcher_bond_labour_cost'
     | 'stack_bond_labour_cost'
@@ -295,8 +299,22 @@ export interface SupplierPriceSource {
     | 'english_garden_bond_labour_cost'
     | 'flemish_bond_labour_cost'
     | 'flemish_garden_bond_labour_cost'
+    | 'timber_screening_slat'
+    | 'timber_picket'
     | 'timber_fence'
     | 'pvc_fence';
+  /**
+   * Derived from the selected timber pricing key.
+   */
+  timberProductType?: ('screening_slat' | 'picket') | null;
+  /**
+   * Detected from the supplier URL when keywords are available.
+   */
+  detectedTimberProductType?: ('screening_slat' | 'picket') | null;
+  /**
+   * Check this warning before using the supplier source.
+   */
+  timberProductTypeWarning?: string | null;
   /**
    * Required for manual supplier sources. URL sources detect this automatically, but existing sources can be corrected manually.
    */
@@ -527,6 +545,9 @@ export interface SupplierPriceSourcesSelect<T extends boolean = true> {
   productUrl?: T;
   supplierName?: T;
   pricingKey?: T;
+  timberProductType?: T;
+  detectedTimberProductType?: T;
+  timberProductTypeWarning?: T;
   unit?: T;
   pvcPricingMode?: T;
   unitQuantity?: T;

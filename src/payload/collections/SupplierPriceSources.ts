@@ -10,8 +10,12 @@ import {
   formatPvcPanelPriceSummary,
   formatPvcPriceDisplay,
   formatPriceWithUnit,
+  isTimberFencePricingKey,
   isLabourPricingKey,
   normalizePvcPanelPrices,
+  TIMBER_PRODUCT_TYPES,
+  timberProductTypeForPricingKey,
+  timberProductTypeLabel,
 } from '../../pricing'
 import {
   pricingKeyOptions,
@@ -20,13 +24,25 @@ import {
 
 const SUPPLIER_UNITS_BY_PRICING_KEY: Record<string, string[]> = {
   standard_brick: ['each', 'per_quantity'],
+  custom_brick: ['each', 'per_quantity'],
   mortar: ['per_bag', 'm3'],
+  timber_screening_slat: ['m'],
+  timber_picket: ['each'],
   timber_fence: ['m'],
   pvc_fence: ['each', 'm'],
 }
 
-function getSupplierAllowedUnits(pricingKey: string | null | undefined): string[] {
+function getSupplierAllowedUnits(
+  pricingKey: string | null | undefined,
+): string[] {
   if (!pricingKey) return pricingUnitOptions.map((option) => option.value)
+
+  if (pricingKey === 'timber_screening_slat' || pricingKey === 'timber_fence') {
+    return ['m', 'custom']
+  }
+  if (pricingKey === 'timber_picket') {
+    return ['each', 'custom']
+  }
 
   return [
     ...(SUPPLIER_UNITS_BY_PRICING_KEY[pricingKey] ?? [defaultUnitForPricingKey(pricingKey)]),
@@ -104,6 +120,11 @@ export const SupplierPriceSources: CollectionConfig = {
         const pricingKey = data?.pricingKey ?? originalDoc?.pricingKey
         const pvcPricingMode =
           data?.pvcPricingMode ?? originalDoc?.pvcPricingMode ?? 'panel'
+        const timberProductType =
+          timberProductTypeForPricingKey(pricingKey) ??
+          data?.timberProductType ??
+          originalDoc?.timberProductType ??
+          'screening_slat'
         if (isLabourPricingKey(pricingKey)) {
           throw new Error('Labour costs are manual pricing items and cannot use supplier sources.')
         }
@@ -118,19 +139,17 @@ export const SupplierPriceSources: CollectionConfig = {
         let unit =
           requestedUnit && allowedUnits.includes(requestedUnit)
             ? requestedUnit
-            : productUrl
-              ? defaultUnitForPricingKey(pricingKey)
-              : allowedUnits[0] ?? defaultUnitForPricingKey(pricingKey)
+            : allowedUnits[0] ?? defaultUnitForPricingKey(pricingKey)
         if (pricingKey === 'mortar' && unit === 'per_bag' && typeof bagWeightKg !== 'number') {
           data.bagWeightKg = 20
         }
-        if (pricingKey === 'standard_brick' && unit === 'per_1000') {
+        if ((pricingKey === 'standard_brick' || pricingKey === 'custom_brick') && unit === 'per_1000') {
           unit = 'per_quantity'
           unitQuantity = 1000
           data.unit = unit
         }
         if (
-          pricingKey === 'standard_brick' &&
+          (pricingKey === 'standard_brick' || pricingKey === 'custom_brick') &&
           (unit === 'per_quantity' || unit === 'per_1000') &&
           (typeof unitQuantity !== 'number' || unitQuantity <= 1)
         ) {
@@ -181,6 +200,18 @@ export const SupplierPriceSources: CollectionConfig = {
               data.lastPrice = selectedPanelPrice
             }
           }
+        }
+        if (isTimberFencePricingKey(pricingKey)) {
+          data.timberProductType = timberProductType
+          data.timberProductTypeWarning =
+            data.detectedTimberProductType &&
+            data.detectedTimberProductType !== timberProductType
+              ? `Detected ${timberProductTypeLabel(data.detectedTimberProductType)}, but selected ${timberProductTypeLabel(timberProductType)}. Please double check.`
+              : null
+        } else {
+          data.timberProductType = null
+          data.detectedTimberProductType = null
+          data.timberProductTypeWarning = null
         }
 
         if (productUrl) {
@@ -301,8 +332,47 @@ export const SupplierPriceSources: CollectionConfig = {
       type: 'select',
       options: pricingKeyOptions,
       filterOptions: ({ options }) =>
-        options.filter((option) => !isLabourPricingKey(optionValue(option))),
+        options.filter((option) => {
+          const value = optionValue(option)
+
+          return value !== 'timber_fence' && !isLabourPricingKey(value)
+        }),
       required: true,
+    },
+    {
+      name: 'timberProductType',
+      type: 'select',
+      defaultValue: 'screening_slat',
+      options: [...TIMBER_PRODUCT_TYPES],
+      admin: {
+        condition: (_, siblingData) => isTimberFencePricingKey(siblingData.pricingKey),
+        description:
+          'Derived from the selected timber pricing key.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'detectedTimberProductType',
+      type: 'select',
+      options: [...TIMBER_PRODUCT_TYPES],
+      admin: {
+        condition: (_, siblingData) =>
+          isTimberFencePricingKey(siblingData.pricingKey) &&
+          Boolean(siblingData.detectedTimberProductType),
+        description: 'Detected from the supplier URL when keywords are available.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'timberProductTypeWarning',
+      type: 'textarea',
+      admin: {
+        condition: (_, siblingData) =>
+          isTimberFencePricingKey(siblingData.pricingKey) &&
+          Boolean(siblingData.timberProductTypeWarning),
+        description: 'Check this warning before using the supplier source.',
+        readOnly: true,
+      },
     },
     {
       name: 'unit',
@@ -345,7 +415,8 @@ export const SupplierPriceSources: CollectionConfig = {
       defaultValue: 1000,
       admin: {
         condition: (_, siblingData) =>
-          siblingData.pricingKey === 'standard_brick' &&
+          (siblingData.pricingKey === 'standard_brick' ||
+            siblingData.pricingKey === 'custom_brick') &&
           siblingData.unit === 'per_quantity',
         description: 'Number of bricks covered by this supplier price.',
       },

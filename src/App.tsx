@@ -44,6 +44,14 @@ function PersistentPreview() {
   const previewTimberFence = state.timberFence || 'none'
   const spacingTooWide = previewPierType !== 'none' && pierSpacing > 3
   const hasPreviewBond = pathname !== '/dimensions' && !!state.bondPattern && !!state.cutBricks
+  const infillSummary =
+    hasPreviewBond && previewTimberFence !== 'none'
+      ? previewTimberFence === 'timber'
+        ? `${t('pier.timberFenceOptions.timber')}: ${t(
+            `pier.timberFenceStyleOptions.${state.timberFenceStyle || 'rails'}`,
+          )}`
+        : t(`pier.timberFenceOptions.${previewTimberFence}`)
+      : null
   const showDiagram =
     length > 0 &&
     height > 0 &&
@@ -55,7 +63,10 @@ function PersistentPreview() {
     hasPreviewBond ? t(`bond.${state.bondPattern}`) : null,
     hasPreviewBond ? t(`cutBricks.options.${state.cutBricks}`) : null,
     hasPreviewBond && state.pierType ? t(`pier.types.${previewPierType}`) : null,
+    infillSummary,
   ].filter(Boolean).join(' · ')
+
+  const displaySelectionSummary = selectionSummary
 
   useEffect(() => {
     if (!previewOpen) return
@@ -98,9 +109,9 @@ function PersistentPreview() {
               </div>
             )}
           </div>
-          {selectionSummary && (
+          {displaySelectionSummary && (
             <div className="mb-3 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text">
-              {selectionSummary}
+              {displaySelectionSummary}
             </div>
           )}
           {showDiagram ? (
@@ -134,8 +145,8 @@ function PersistentPreview() {
                 <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wide">
                   {t('diagram.previewTitle')}
                 </h3>
-                {selectionSummary && (
-                  <div className="mt-1 text-sm font-medium text-text">{selectionSummary}</div>
+                {displaySelectionSummary && (
+                  <div className="mt-1 text-sm font-medium text-text">{displaySelectionSummary}</div>
                 )}
                 <div className="mt-1 text-xs text-text-muted">
                   Hold Ctrl and scroll to zoom the preview. Current zoom: {Math.round(previewZoom * 100)}%

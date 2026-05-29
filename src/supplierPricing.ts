@@ -6,17 +6,21 @@ import type { Payload } from 'payload'
 import {
   type PricingKey,
   type PvcPricingMode,
+  type TimberProductType,
   PVC_FENCE_PANEL_SPECS,
   formatPvcPriceDisplay,
   formatPriceWithUnit,
   inferPvcFencePanelSize,
+  inferTimberProductType,
   isPricingKey,
   isPvcFencePricingKey,
+  isTimberFencePricingKey,
   normalizePvcPanelPrices,
   type PvcFencePanelSize,
 } from './pricing'
 import {
   isSafeAIPriceParse,
+  type AISupplierPriceParse,
   parseSupplierPriceWithAI,
 } from './supplierPriceAI'
 import { assertSafeSupplierUrl } from './security'
@@ -34,6 +38,9 @@ export type SupplierPriceSourceDoc = {
   unit?: string | null
   pvcPricingMode?: string | null
   pvcPanelPriceDisplay?: string | null
+  timberProductType?: string | null
+  detectedTimberProductType?: string | null
+  timberProductTypeWarning?: string | null
   unitConversionFactor?: number | null
   unitConversionNote?: string | null
   unitQuantity?: number | null
@@ -60,6 +67,7 @@ type ScrapedPrice = {
   currency: string
   unit?: string
   pvcPricingMode?: PvcPricingMode
+  detectedTimberProductType?: TimberProductType
   unitConversionFactor?: number
   unitConversionNote?: string
   unitQuantity?: number
@@ -171,11 +179,17 @@ export function normalizeSupplierUnitPrice(params: {
   unitQuantity?: number | null
   unitPrice: number
 }): number {
-  if (params.pricingKey === 'standard_brick' && params.unit === 'per_1000') {
+  if (
+    (params.pricingKey === 'standard_brick' || params.pricingKey === 'custom_brick') &&
+    params.unit === 'per_1000'
+  ) {
     return params.unitPrice / 1000
   }
 
-  if (params.pricingKey === 'standard_brick' && params.unit === 'per_quantity') {
+  if (
+    (params.pricingKey === 'standard_brick' || params.pricingKey === 'custom_brick') &&
+    params.unit === 'per_quantity'
+  ) {
     const quantity =
       typeof params.unitQuantity === 'number' &&
       Number.isFinite(params.unitQuantity) &&
@@ -459,6 +473,54 @@ function extractMainEachProductPrice(text: string):
   }
 }
 
+function normalizeProductText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function extractPrimaryProductEachPrice(text: string, title: string):
+  | {
+      unitPrice: number
+      unit: string
+    }
+  | undefined {
+  const addToCartMatch = text.match(/\bAdd to Cart\b/i)
+  const productAreaEnd = addToCartMatch?.index ?? Math.min(text.length, 5000)
+  const productPrefix = text.slice(0, productAreaEnd)
+  const normalizedPrefix = normalizeProductText(productPrefix)
+  const normalizedTitle = normalizeProductText(title)
+  const normalizedTitleIndex = normalizedTitle
+    ? normalizedPrefix.lastIndexOf(normalizedTitle)
+    : -1
+  const roughTitleIndex =
+    normalizedTitleIndex >= 0
+      ? productPrefix.toLowerCase().lastIndexOf(title.toLowerCase().slice(0, 24))
+      : -1
+  const context =
+    roughTitleIndex >= 0
+      ? productPrefix.slice(roughTitleIndex)
+      : productPrefix.slice(Math.max(0, productPrefix.length - 1800))
+  const priceMatches = [
+    ...context.matchAll(/\$\s*([0-9]{1,4}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)/g),
+  ]
+
+  for (const match of priceMatches) {
+    const priceText = match[1]
+    const index = match.index ?? 0
+    const before = context.slice(Math.max(0, index - 30), index).toLowerCase()
+    if (/\b(rrp|save|saving|paypal|payment|delivery|shipping|freight)\b/.test(before)) continue
+
+    const unitPrice = Number.parseFloat(priceText.replace(/,/g, ''))
+    if (Number.isFinite(unitPrice) && unitPrice > 0 && unitPrice < 10000) {
+      return {
+        unit: 'each',
+        unitPrice,
+      }
+    }
+  }
+
+  return undefined
+}
+
 function parseQuantityValue(value: string | null | undefined): number | undefined {
   if (!value) return undefined
 
@@ -542,11 +604,25 @@ function extractStructuredPrice(html: string):
 
 function extractPriceContextSnippet(html: string, text: string): string {
   const snippets: string[] = []
+  const productContextPatterns = [
+    /\b[0-9]+\s*x\s*[0-9]+mm\b[\s\S]{0,2200}?\bAdd to Cart\b/gi,
+    /\b(?:picket|paling|screening|slat|fence)\b[\s\S]{0,2200}?\bAdd to Cart\b/gi,
+    /\$\s*[0-9]{1,4}\s*[.\s]\s*[0-9]{2}[\s\S]{0,800}/g,
+    /\$\s*[0-9]{1,4}\s*[.\s]\s*[0-9]{2}\s*per\s+linear\s+metre[\s\S]{0,800}/gi,
+  ]
   const htmlPatterns = [
     /data-price-amount=["']?([0-9][0-9,]*(?:\.[0-9]+)?)["']?[\s\S]{0,500}/gi,
     /\$\s*[0-9]{1,4}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?[\s\S]{0,500}/g,
     /class=["'][^"']*(?:uom|price)[^"']*["'][\s\S]{0,500}/gi,
   ]
+
+  for (const pattern of productContextPatterns) {
+    for (const match of text.matchAll(pattern)) {
+      if (match[0]) snippets.push(match[0])
+      if (snippets.length >= 4) break
+    }
+    if (snippets.length >= 4) break
+  }
 
   for (const pattern of htmlPatterns) {
     for (const match of html.matchAll(pattern)) {
@@ -574,14 +650,47 @@ function shouldUseAIPriceFallback(params: {
   unitPrice: number
 }): boolean {
   if (isPvcFencePricingKey(params.pricingKey)) return true
+  if (isTimberFencePricingKey(params.pricingKey)) {
+    return isSuspiciousTimberPrice({
+      unit: params.unit,
+      unitPrice: params.unitPrice,
+    })
+  }
 
   if (!params.unit) return true
 
   return (
-    params.pricingKey === 'standard_brick' &&
+    (params.pricingKey === 'standard_brick' || params.pricingKey === 'custom_brick') &&
     params.unit === 'each' &&
     params.unitPrice > 20
   )
+}
+
+async function parseSupplierPriceWithAISafely(params: {
+  html: string
+  pricingKey?: string | null
+  text: string
+  url: string
+}): Promise<AISupplierPriceParse | null> {
+  try {
+    return await parseSupplierPriceWithAI({
+      pricingKey: params.pricingKey,
+      textSnippet: extractPriceContextSnippet(params.html, params.text),
+      url: params.url,
+    })
+  } catch {
+    return null
+  }
+}
+
+function isSuspiciousTimberPrice(params: {
+  unit?: string
+  unitPrice: number
+}): boolean {
+  if (!params.unit) return true
+  if (params.unit !== 'each' && params.unit !== 'm' && params.unit !== 'custom') return true
+
+  return params.unitPrice >= 100
 }
 
 async function responseToLimitedText(response: Response): Promise<string> {
@@ -701,6 +810,16 @@ function getPriceCandidateFromHtml(html: string): {
     }
   }
 
+  const primaryProductEachPrice = extractPrimaryProductEachPrice(text, title)
+  if (primaryProductEachPrice) {
+    return {
+      structuredPrice: primaryProductEachPrice,
+      text,
+      title,
+      unitPrice: primaryProductEachPrice.unitPrice,
+    }
+  }
+
   const structuredPrice = extractStructuredPrice(html)
   const prices = structuredPrice
     ? [structuredPrice.unitPrice]
@@ -739,6 +858,31 @@ export async function scrapeSupplierPrice(
   const { structuredPrice, text, title, unitPrice } = candidate
 
   if (!unitPrice) {
+    if (isTimberFencePricingKey(pricingKey)) {
+      const aiParsed = await parseSupplierPriceWithAISafely({
+        html,
+        pricingKey,
+        text,
+        url: fetchUrl,
+      })
+
+      if (isSafeAIPriceParse(aiParsed, pricingKey)) {
+        return {
+          title,
+          unitPrice: aiParsed.price,
+          currency: extractCurrency(html),
+          unit: aiParsed.unit,
+          unitConversionFactor: aiParsed.unitConversionFactor ?? undefined,
+          unitConversionNote: aiParsed.unitConversionNote ?? undefined,
+          unitQuantity: aiParsed.unitQuantity ?? undefined,
+          bagWeightKg: aiParsed.bagWeightKg ?? undefined,
+          detectedTimberProductType: inferTimberProductType(
+            `${fetchUrl} ${title} ${text.slice(0, 3000)}`,
+          ),
+        }
+      }
+    }
+
     if (/\bPOA\b|price\s*on\s*application|price\s*on\s*request/i.test(text)) {
       throw new Error(
         'Supplier page returned POA instead of a numeric public price. Open the product page in a browser or enter this supplier price manually.',
@@ -766,25 +910,32 @@ export async function scrapeSupplierPrice(
       unitPrice,
     })
   ) {
-    try {
-      const aiParsed = await parseSupplierPriceWithAI({
-        pricingKey,
-        textSnippet: extractPriceContextSnippet(html, text),
-        url: fetchUrl,
-      })
+    const aiParsed = await parseSupplierPriceWithAISafely({
+      html,
+      pricingKey,
+      text,
+      url: fetchUrl,
+    })
 
-      if (isSafeAIPriceParse(aiParsed, pricingKey)) {
-        resolvedUnitPrice = aiParsed.price
-        unitInfo = {
-          unit: aiParsed.unit,
-          unitQuantity: aiParsed.unitQuantity ?? undefined,
-        }
-        bagWeightKg = aiParsed.bagWeightKg ?? undefined
-        unitConversionFactor = aiParsed.unitConversionFactor ?? undefined
-        unitConversionNote = aiParsed.unitConversionNote ?? undefined
+    if (isSafeAIPriceParse(aiParsed, pricingKey)) {
+      resolvedUnitPrice = aiParsed.price
+      unitInfo = {
+        unit: aiParsed.unit,
+        unitQuantity: aiParsed.unitQuantity ?? undefined,
       }
-    } catch {
-      // Keep the deterministic parse result when the optional AI fallback is unavailable.
+      bagWeightKg = aiParsed.bagWeightKg ?? undefined
+      unitConversionFactor = aiParsed.unitConversionFactor ?? undefined
+      unitConversionNote = aiParsed.unitConversionNote ?? undefined
+    } else if (
+      isTimberFencePricingKey(pricingKey) &&
+      isSuspiciousTimberPrice({
+        unit: unitInfo.unit,
+        unitPrice,
+      })
+    ) {
+      throw new Error(
+        'URL parsing found a suspicious timber price, and AI-assisted parsing could not confirm the public product price. Please double check the supplier page or enter this price manually.',
+      )
     }
   }
 
@@ -804,6 +955,9 @@ export async function scrapeSupplierPrice(
     bagWeightKg,
     pvcPanelSize: isPvcFencePricingKey(pricingKey)
       ? inferPvcFencePanelSize(`${fetchUrl} ${title} ${text.slice(0, 1000)}`)
+      : undefined,
+    detectedTimberProductType: isTimberFencePricingKey(pricingKey)
+      ? inferTimberProductType(`${fetchUrl} ${title} ${text.slice(0, 3000)}`)
       : undefined,
   }
 }

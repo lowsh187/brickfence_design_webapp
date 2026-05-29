@@ -2,6 +2,7 @@ import {
   PVC_FENCE_PANEL_SPECS,
   baseCalculationUnitForPricingKey,
   isPvcFencePricingKey,
+  isTimberFencePricingKey,
 } from './pricing'
 
 export type AISupplierPriceParse = {
@@ -73,7 +74,7 @@ export function isSafeAIPriceParse(
     }
   }
 
-  if (pricingKey === 'standard_brick') {
+  if (pricingKey === 'standard_brick' || pricingKey === 'custom_brick') {
     if (result.unit === 'each' && result.price > 20) return false
     if (result.unit === 'per_quantity') {
       return (
@@ -97,6 +98,11 @@ export function isSafeAIPriceParse(
     return (result.unit === 'each' || result.unit === 'm') && result.price < 5000
   }
 
+  if (isTimberFencePricingKey(pricingKey)) {
+    return (result.unit === 'each' || result.unit === 'm' || result.unit === 'custom') &&
+      result.price < 1000
+  }
+
   return true
 }
 
@@ -108,6 +114,19 @@ function pvcFencePanelInstruction(pricingKey: string | null | undefined): string
     'If the product is a fixed panel/rail item, use unit "each" and extract the current/sale price for the main product size in the URL/page title only.',
     'If the page clearly says the PVC fence price is per metre, linear metre, meter, or m, use unit "m".',
     'Do not choose related products, accessories, posts, caps, brackets, gates, or stair railing.',
+  ].join('\n')
+}
+
+function timberFenceInstruction(pricingKey: string | null | undefined): string {
+  if (!isTimberFencePricingKey(pricingKey)) return ''
+
+  return [
+    'This pricing key is timber fence. Extract the main product price only.',
+    'For pickets, palings, or individual vertical boards, use unit "each" when the page shows an each/item price.',
+    'For screening, slats, rails, or timber sold per linear metre, use unit "m".',
+    'Bunnings-style prices may be visually split, for example "$4 95" means 4.95 and "$4 13 per linear metre" means 4.13 per metre.',
+    'Ignore product dimensions such as 70 x 19mm, 1.2m, 1.8m, item numbers, store ids, Flybuys points, review counts, and error codes.',
+    'If both an each price and a per linear metre price appear for one picket, prefer the each price.',
   ].join('\n')
 }
 
@@ -139,6 +158,7 @@ export async function parseSupplierPriceWithAI(params: {
                   'Examples: box of 10 bricks => 10; 2.4m fence panel => 2.4; one PVC panel/item => 1. If this cannot be inferred, return price null.',
                   'Use unitConversionNote to briefly explain the custom-unit conversion.',
                   pvcFencePanelInstruction(params.pricingKey),
+                  timberFenceInstruction(params.pricingKey),
                   `Pricing key: ${params.pricingKey ?? 'unknown'}`,
                   `URL: ${params.url}`,
                   `Text snippet:\n${params.textSnippet}`,

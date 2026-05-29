@@ -72,6 +72,7 @@ export async function GET() {
 
     for (const doc of result.docs as PricingItemDoc[]) {
       if (!isPricingKey(doc.key)) continue
+      const pricingKey = doc.key === 'timber_fence' ? 'timber_screening_slat' : doc.key
 
       const manualPrice =
         typeof doc.manualUnitPrice === 'number'
@@ -109,13 +110,13 @@ export async function GET() {
             typeof supplierSource.lastPrice === 'number'
           ) {
             supplierPrice = normalizeSupplierUnitPrice({
-              pricingKey: doc.key,
+              pricingKey,
               unit: supplierSource.unit,
               unitConversionFactor: supplierSource.unitConversionFactor,
               unitQuantity: supplierSource.unitQuantity,
               unitPrice: supplierSource.lastPrice,
             })
-            if (doc.key === 'pvc_fence') {
+            if (pricingKey === 'pvc_fence') {
               doc.pvcPricingMode = supplierSource.pvcPricingMode ?? doc.pvcPricingMode
               doc.unit = supplierSource.unit ?? doc.unit
               if (supplierSource.pvcPanelPrices) {
@@ -145,36 +146,36 @@ export async function GET() {
         doc.priceSource !== 'average' &&
         typeof manualPrice === 'number'
 
-      prices[doc.key] = {
-        key: doc.key,
-        name: doc.name || prices[doc.key].name,
+      prices[pricingKey] = {
+        key: pricingKey,
+        name: doc.name || prices[pricingKey].name,
         unit:
           doc.unit === 'custom'
             ? doc.customUnit || doc.unit
-            : doc.unit || prices[doc.key].unit,
+            : doc.unit || prices[pricingKey].unit,
         unitQuantity:
           typeof doc.unitQuantity === 'number'
             ? doc.unitQuantity
-            : prices[doc.key].unitQuantity,
+            : prices[pricingKey].unitQuantity,
         unitConversionFactor:
           shouldExposeUnitConversion && typeof doc.unitConversionFactor === 'number'
             ? doc.unitConversionFactor
-            : prices[doc.key].unitConversionFactor,
+            : prices[pricingKey].unitConversionFactor,
         unitConversionNote:
           shouldExposeUnitConversion
-            ? doc.unitConversionNote || prices[doc.key].unitConversionNote
-            : prices[doc.key].unitConversionNote,
+            ? doc.unitConversionNote || prices[pricingKey].unitConversionNote
+            : prices[pricingKey].unitConversionNote,
         unitPrice,
         pvcPricingMode:
-          doc.key === 'pvc_fence'
+          pricingKey === 'pvc_fence'
             ? doc.pvcPricingMode ?? (doc.unit === 'm' ? 'per_m' : 'panel')
-            : prices[doc.key].pvcPricingMode,
+            : prices[pricingKey].pvcPricingMode,
         bagWeightKg:
           typeof doc.bagWeightKg === 'number'
             ? doc.bagWeightKg
-            : prices[doc.key].bagWeightKg,
+            : prices[pricingKey].bagWeightKg,
         pvcPanelPrices:
-          doc.key === 'pvc_fence'
+          pricingKey === 'pvc_fence'
             ? normalizePvcPanelPrices(
               {
                 '4ft': doc.pvcPanelPrices?.fourFt ?? undefined,
@@ -185,8 +186,8 @@ export async function GET() {
               },
               unitPrice,
             ).prices
-            : prices[doc.key].pvcPanelPrices,
-        currency: doc.currency || prices[doc.key].currency,
+            : prices[pricingKey].pvcPanelPrices,
+        currency: doc.currency || prices[pricingKey].currency,
       } satisfies PricingItem
     }
 

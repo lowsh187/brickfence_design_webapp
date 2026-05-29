@@ -855,7 +855,12 @@ export default function FenceDiagram({
   const wallSegments = layout.wallSegments
   const structureH = Math.max(renderedH, effectivePierType === 'none' ? 0 : pierFace.height)
   const topRevealMm = Math.max(0, pierFace.height - renderedH)
-  const canRenderInfill = topRevealMm >= MIN_INFILL_CLEARANCE_MM
+  const requiredInfillClearanceMm =
+    timberFenceSafe === 'pvc' ||
+    (timberFenceSafe === 'timber' && timberFenceStyleSafe === 'verticalPalings')
+      ? 800
+      : MIN_INFILL_CLEARANCE_MM
+  const canRenderInfill = topRevealMm >= requiredInfillClearanceMm
 
   const visiblePiers = useMemo<IndexedPierLayout[]>(() => {
     return piers

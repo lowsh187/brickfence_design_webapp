@@ -1,5 +1,6 @@
 export const pricingKeyOptions = [
   { label: 'Standard brick', value: 'standard_brick' },
+  { label: 'Custom brick', value: 'custom_brick' },
   { label: 'Mortar', value: 'mortar' },
   { label: 'Stretcher bond labour cost', value: 'stretcher_bond_labour_cost' },
   { label: 'Stack bond labour cost', value: 'stack_bond_labour_cost' },
@@ -8,7 +9,9 @@ export const pricingKeyOptions = [
   { label: 'English garden bond labour cost', value: 'english_garden_bond_labour_cost' },
   { label: 'Flemish bond labour cost', value: 'flemish_bond_labour_cost' },
   { label: 'Flemish garden bond labour cost', value: 'flemish_garden_bond_labour_cost' },
-  { label: 'Timber fence', value: 'timber_fence' },
+  { label: 'Timber screening / slat', value: 'timber_screening_slat' },
+  { label: 'Timber picket', value: 'timber_picket' },
+  { label: 'Timber fence legacy fallback', value: 'timber_fence' },
   { label: 'PVC fence', value: 'pvc_fence' },
 ]
 
@@ -16,7 +19,7 @@ export const pricingUnitOptions = [
   { label: 'Each', value: 'each' },
   { label: 'Cubic metre', value: 'm3' },
   { label: 'Square metre', value: 'm2' },
-  { label: 'Metre', value: 'm' },
+  { label: 'Per metre', value: 'm' },
   { label: 'Per quantity', value: 'per_quantity' },
   { label: 'Per 1000 bricks', value: 'per_1000' },
   { label: 'Per brick', value: 'per_brick' },
