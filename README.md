@@ -1,117 +1,191 @@
 # Fence Cost Calculator
 
-A client-side web application for estimating brick fence costs. The project is built with React, TypeScript, and Vite.
+Fence Cost Calculator is a production-ready web application for estimating brick fence construction costs. It includes a public calculator interface and a Payload CMS admin area for managing pricing data and supplier price sources.
 
-**Live demo:** [capstone-g-id113-t3-cs-24.vercel.app](https://capstone-g-id113-t3-cs-24.vercel.app/)
+The current application is built with Next.js, React, TypeScript, Payload CMS, Tailwind CSS, and PostgreSQL.
 
-For contribution workflow and bond-pattern development guidance, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+## Application Areas
 
-## English
+- Public calculator: used by external users to enter dimensions, choose bond patterns, configure piers and infill, and calculate estimated costs.
+- Pricing API: serves calculator pricing data from Payload CMS with a default pricing fallback.
+- Admin area: used by internal company staff to manage pricing items, supplier price sources, and administrative users.
 
-### Prerequisites
+In production, the public calculator can be exposed to the internet, while `/admin` and backend CMS/API routes should be restricted to the company network, VPN, or approved office IP addresses.
 
-- Node.js v22
+## Requirements
+
+- Node.js 22.x
 - npm
+- PostgreSQL 16 or later
 
-If you use `nvm`:
+If using `nvm`:
 
 ```bash
 nvm install 22
 nvm use 22
 node -v
+npm -v
 ```
 
-### Getting Started
+## Environment Variables
+
+Create a `.env.local` file in the project root.
+
+```env
+DATABASE_URL=postgres://USER:PASSWORD@127.0.0.1:5432/fence_calculator
+PAYLOAD_SECRET=replace-with-a-long-random-secret
+```
+
+For local development, the PostgreSQL database must already exist and the database user must have access to it.
+
+## Local Development
+
+Install dependencies:
 
 ```bash
-git clone git@github.com:CosimoZi/COMP5703-Project.git
-cd COMP5703-Project/fence-calculator
 npm install
+```
+
+Initialize the Payload database schema when running against a new local database:
+
+```bash
+PAYLOAD_DB_PUSH=true npm run payload:bootstrap
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-Open the local URL shown in the terminal, usually `http://localhost:5173/`.
+Open the local URL shown in the terminal. The default Next.js port is usually:
 
-### Scripts
+```text
+http://localhost:3000
+```
+
+If port `3000` is already in use, Next.js will choose another available port.
+
+Admin area:
+
+```text
+http://localhost:3000/admin
+```
+
+On a fresh database, open the first-user page and create the first admin account:
+
+```text
+http://localhost:3000/admin/create-first-user
+```
+
+## Production Deployment
+
+For server deployment, use the dedicated deployment guide:
+
+[DEPLOYMENT.md](./DEPLOYMENT.md)
+
+The deployment guide covers:
+
+- Company server preparation
+- PostgreSQL setup
+- Production environment variables
+- Payload schema initialization
+- Production build
+- systemd service setup
+- Nginx public website routing
+- Internal-only admin access
+- HTTPS, firewall, backup, restore, and verification steps
+
+## Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run build` | Build the production bundle into `dist/` |
-| `npm run preview` | Preview the production build locally |
+| `npm run dev` | Start the Next.js development server |
+| `npm run build` | Initialize Payload schema if enabled, then build the production Next.js application |
+| `npm run preview` | Start the production Next.js server with `next start` |
 | `npm run lint` | Run ESLint |
-| `npm run deploy` | Build and deploy to GitHub Pages |
+| `npm run payload:bootstrap` | Run the Payload schema bootstrap command |
 
-### Tech Stack
+For first deployment or schema changes, run:
 
+```bash
+PAYLOAD_DB_PUSH=true npm run payload:bootstrap
+```
+
+## Tech Stack
+
+- Next.js 16
 - React 19
 - TypeScript
-- Vite
-- Tailwind CSS v4
-- react-router-dom
+- Payload CMS 3
+- PostgreSQL
+- Tailwind CSS 4
 - react-konva
 - react-i18next
 
-### Troubleshooting
+## Project Structure
 
-If the app shows a blank screen locally:
-
-- Make sure the dev server is running with `npm run dev`
-- Check browser developer tools for console errors
-- Clear browser cache and reload
-- Try another browser if the issue is browser-specific
-
-## 中文
-
-### 环境要求
-
-- Node.js v22
-- npm
-
-如果你使用 `nvm`：
-
-```bash
-nvm install 22
-nvm use 22
-node -v
-```
-
-### 快速开始
-
-```bash
-git clone git@github.com:CosimoZi/COMP5703-Project.git
-cd COMP5703-Project/fence-calculator
-npm install
-npm run dev
-```
-
-然后在浏览器打开终端显示的本地地址，通常是 `http://localhost:5173/`。
-
-### 常用命令
-
-| 命令 | 说明 |
+| Path | Purpose |
 | --- | --- |
-| `npm run dev` | 启动开发服务器 |
-| `npm run build` | 构建生产版本到 `dist/` |
-| `npm run preview` | 本地预览生产版本 |
-| `npm run lint` | 运行 ESLint |
-| `npm run deploy` | 构建并部署到 GitHub Pages |
+| `src/app` | Next.js app routes, public site routes, Payload routes, and API routes |
+| `src/screens` | Calculator workflow screens |
+| `src/components` | Shared React UI components |
+| `src/context` | Calculator form state |
+| `src/bonds` | Brick bond pattern generation logic |
+| `src/payload` | Payload CMS collections, admin components, and security helpers |
+| `src/pricing.ts` | Pricing defaults and cost calculation logic |
+| `payload.config.ts` | Payload CMS configuration |
+| `DEPLOYMENT.md` | Production server deployment guide |
 
-### 技术栈
+## Verification
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS v4
-- react-router-dom
-- react-konva
-- react-i18next
+Run lint:
 
-### 排查建议
+```bash
+npm run lint
+```
 
-如果本地页面显示空白：
+Run a production build:
 
-- 确认开发服务器已经通过 `npm run dev` 启动
-- 打开浏览器开发者工具检查控制台报错
-- 清除浏览器缓存后刷新
-- 如果是浏览器兼容问题，尝试更换浏览器
+```bash
+npm run build
+```
+
+Start a production server after building:
+
+```bash
+npm run preview
+```
+
+Check the pricing endpoint:
+
+```bash
+curl http://localhost:3000/pricing-data
+```
+
+## Troubleshooting
+
+If the app does not start:
+
+- Confirm Node.js 22.x is being used.
+- Confirm dependencies were installed with `npm install` or `npm ci`.
+- Confirm `.env.local` exists.
+- Confirm `DATABASE_URL` and `PAYLOAD_SECRET` are set.
+- Confirm PostgreSQL is running and the database exists.
+
+If `/pricing-data` returns default pricing instead of CMS pricing:
+
+- Confirm the database connection is working.
+- Confirm Payload schema bootstrap has been run.
+- Check the application logs for database or Payload initialization errors.
+
+If the admin area does not load:
+
+- Confirm the app can connect to PostgreSQL.
+- Confirm `PAYLOAD_SECRET` is set.
+- Confirm the first admin user has been created on a fresh database.
+
+If the public site is deployed but admin routes are reachable from the internet:
+
+- Review the Nginx access-control rules in `DEPLOYMENT.md`.
+- Ensure `/admin`, `/api`, `/graphql`, and `/graphql-playground` are blocked on the public domain.
