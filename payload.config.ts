@@ -30,6 +30,8 @@ loadLocalEnv()
 
 const databaseUrl = process.env.DATABASE_URL
 const payloadSecret = process.env.PAYLOAD_SECRET
+const shouldPushDatabaseSchema =
+  process.env.PAYLOAD_DB_PUSH === 'true' || process.env.NODE_ENV !== 'production'
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required. Add it to .env.local before opening Payload Admin.')
@@ -52,6 +54,7 @@ export default buildConfig({
     pool: {
       connectionString: databaseUrl,
     },
+    push: shouldPushDatabaseSchema,
   }),
   onInit: async (payload) => {
     try {
